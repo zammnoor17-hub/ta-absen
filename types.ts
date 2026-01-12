@@ -8,7 +8,7 @@ export interface AttendanceRecord extends StudentData {
   id: string;
   timestamp: number;
   jam: string;
-  status: 'HADIR' | 'HALANGAN';
+  status: 'HADIR' | 'HALANGAN' | 'TIDAK_SHOLAT';
   scannedBy: string;
   officerKelas?: string; // Menambahkan informasi kelas petugas
 }
