@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { subscribeToAttendance, getLocalDateString, getDailyLeaderboard, OfficerStat } from '../services/firebase';
 import { AttendanceRecord, Tab } from '../types';
-import { Users, Clock, Calendar, Activity, Sparkles, Zap, ArrowUpRight, Trophy, Target, TrendingUp } from 'lucide-react';
+import { Users, Clock, Calendar, Activity, Sparkles, Zap, ArrowUpRight, Trophy, Target, TrendingUp, X } from 'lucide-react';
 import { motion, Variants } from 'framer-motion';
 
 interface DashboardProps {
@@ -20,7 +19,7 @@ const formatDateFull = (date: Date) => {
 };
 
 const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
-  const [stats, setStats] = useState({ hadir: 0, halangan: 0, total: 0 });
+  const [stats, setStats] = useState({ hadir: 0, halangan: 0, bolos: 0, total: 0 });
   const [leaderboard, setLeaderboard] = useState<OfficerStat[]>([]);
   const [recent, setRecent] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +32,8 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
     const unsubAttendance = subscribeToAttendance(dateStr, (records) => {
       const hadir = records.filter(r => r.status === 'HADIR').length;
       const halangan = records.filter(r => r.status === 'HALANGAN').length;
-      setStats({ hadir, halangan, total: records.length });
+      const bolos = records.filter(r => r.status === 'TIDAK_SHOLAT').length;
+      setStats({ hadir, halangan, bolos, total: records.length });
       setRecent(records.slice(0, 5));
       setLoading(false);
     });
@@ -48,7 +48,7 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
     };
   }, []);
 
-  const progress = Math.min((stats.total / TARGET_DAILY) * 100, 100);
+  const progress = Math.min((stats.hadir / TARGET_DAILY) * 100, 100);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -73,7 +73,7 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
               Halo, <span className="text-emerald-600 dark:text-emerald-400">{userName}</span>
             </h1>
             <p className="text-slate-500 dark:text-slate-400 font-bold text-xs md:text-sm uppercase tracking-tight">
-              Siswa Terdata: <span className="text-slate-900 dark:text-white font-black">{stats.total} / {TARGET_DAILY}</span>
+              Siswa Sholat: <span className="text-slate-900 dark:text-white font-black">{stats.hadir} / {TARGET_DAILY}</span>
             </p>
             <motion.button 
               whileTap={{ scale: 0.95 }}
@@ -103,31 +103,10 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
         </div>
       </motion.div>
 
-      {/* Grid Utama: Sejajar & Compact */}
+      {/* Grid Utama */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard title="Total Scan" value={stats.total} icon={<Users size={18} />} color="emerald" />
-        
-        {/* Small Leaderboard Card */}
-        <motion.div variants={itemVariants} className="bg-slate-900 dark:bg-slate-950 text-white rounded-[2rem] p-4 shadow-xl flex flex-col justify-between overflow-hidden relative border border-white/5">
-            <div className="flex items-center gap-2 mb-2">
-                <Trophy size={14} className="text-amber-400" />
-                <span className="text-[9px] font-black uppercase tracking-widest">TOP PETUGAS</span>
-            </div>
-            <div className="space-y-1.5 flex-1">
-                {leaderboard.length === 0 ? (
-                    <div className="h-full flex items-center text-[8px] text-slate-500 italic">No data</div>
-                ) : (
-                    leaderboard.slice(0, 2).map((off) => (
-                        <div key={off.name} className="flex items-center justify-between text-[10px]">
-                            <span className="truncate max-w-[50px] font-bold opacity-80">{off.name}</span>
-                            <span className="text-emerald-400 font-black">{off.scanCount}</span>
-                        </div>
-                    ))
-                )}
-            </div>
-            <div className="absolute -bottom-2 -right-2 opacity-10"><Target size={40} /></div>
-        </motion.div>
-
+        <StatCard title="Bolos" value={stats.bolos} icon={<X size={18} />} color="red" />
         <StatCard title="Sholat" value={stats.hadir} icon={<TrendingUp size={18} />} color="indigo" />
         <StatCard title="Halangan" value={stats.halangan} icon={<Activity size={18} />} color="amber" />
       </div>
@@ -173,8 +152,12 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
                     <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">{record.kelas} • {record.jam}</p>
                   </div>
                 </div>
-                <div className={`text-[8px] font-black px-3 py-1.5 rounded-lg ${record.status === 'HADIR' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>
-                  {record.status === 'HADIR' ? 'SHOLAT' : 'HALANGAN'}
+                <div className={`text-[8px] font-black px-3 py-1.5 rounded-lg ${
+                    record.status === 'HADIR' ? 'bg-emerald-600 text-white' : 
+                    record.status === 'TIDAK_SHOLAT' ? 'bg-red-600 text-white' : 
+                    'bg-amber-500 text-white'
+                }`}>
+                  {record.status === 'HADIR' ? 'SHOLAT' : record.status === 'TIDAK_SHOLAT' ? 'BOLOS' : 'HALANGAN'}
                 </div>
               </motion.div>
             ))
@@ -189,7 +172,8 @@ const StatCard = ({ title, value, icon, color }: any) => {
   const colors: any = {
     emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30',
     indigo: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30',
-    amber: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30'
+    amber: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30',
+    red: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30'
   };
   return (
     <motion.div 

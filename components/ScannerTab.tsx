@@ -1,9 +1,8 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { StudentData } from '../types';
 import { saveAttendance } from '../services/firebase';
-import { Check, Camera, Sparkles } from 'lucide-react';
+import { Check, Camera, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const playBeep = (freq: number, type: OscillatorType, dur: number) => {
@@ -96,7 +95,7 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
     }
   };
 
-  const handleConfirm = async (status: 'HADIR' | 'HALANGAN') => {
+  const handleConfirm = async (status: 'HADIR' | 'HALANGAN' | 'TIDAK_SHOLAT') => {
     if (!scannedStudent) return;
     try {
       const now = new Date();
@@ -167,30 +166,41 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
           >
               <motion.div 
                 initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
-                className="w-full max-w-xs bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl relative border dark:border-white/5"
+                className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl relative border dark:border-white/5"
               >
                 <div className="flex flex-col items-center text-center">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white mb-4 ${scannedStudent.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white mb-4 shadow-lg ${scannedStudent.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>
                      {scannedStudent.nama.charAt(0)}
                   </div>
                   <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{scannedStudent.nama}</h2>
                   <div className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-2 mb-8 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1 rounded-full border dark:border-emerald-800/50">{scannedStudent.kelas}</div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <motion.button 
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => handleConfirm('HADIR')} 
-                    className="py-4 bg-emerald-600 dark:bg-emerald-500 text-white rounded-2xl font-black flex items-center justify-center shadow-lg"
-                  >
-                    <Check size={28} strokeWidth={3} />
-                  </motion.button>
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <motion.button 
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleConfirm('HADIR')} 
+                      className="flex flex-col items-center justify-center py-4 bg-emerald-600 dark:bg-emerald-500 text-white rounded-2xl font-black shadow-lg"
+                    >
+                      <Check size={24} strokeWidth={3} />
+                      <span className="text-[9px] uppercase mt-1">SHOLAT</span>
+                    </motion.button>
+                    <motion.button 
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleConfirm('TIDAK_SHOLAT')} 
+                      className="flex flex-col items-center justify-center py-4 bg-red-600 dark:bg-red-500 text-white rounded-2xl font-black shadow-lg"
+                    >
+                      <X size={24} strokeWidth={3} />
+                      <span className="text-[9px] uppercase mt-1">BOLOS</span>
+                    </motion.button>
+                  </div>
                   <motion.button 
                     whileTap={{ scale: 0.9 }}
                     onClick={() => handleConfirm('HALANGAN')} 
-                    className="py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest"
+                    className="py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200 dark:border-slate-700"
                   >
-                    HALANGAN
+                    HALANGAN (UDZUR)
                   </motion.button>
                 </div>
                 <button onClick={() => { setScannedStudent(null); scannerRef.current?.resume(); setIsScanning(true); }} className="w-full mt-6 text-slate-300 dark:text-slate-600 text-[8px] font-black uppercase tracking-widest">Batal</button>

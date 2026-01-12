@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { subscribeToAttendance, getLocalDateString } from '../services/firebase';
 import { AttendanceRecord } from '../types';
@@ -38,7 +37,7 @@ const RekapTab: React.FC = () => {
       Nama: item.nama,
       Kelas: item.kelas,
       Gender: item.gender,
-      Status: item.status === 'HADIR' ? 'SHOLAT' : 'HALANGAN',
+      Status: item.status === 'HADIR' ? 'SHOLAT' : item.status === 'TIDAK_SHOLAT' ? 'TIDAK SHOLAT' : 'HALANGAN',
       Petugas: item.scannedBy || '-',
       Tanggal: date
     })));
@@ -46,6 +45,22 @@ const RekapTab: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Absensi");
     XLSX.writeFile(workbook, `Absensi_X-Pray_${date}.xlsx`);
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (status === 'HADIR') return 'SHOLAT';
+    if (status === 'TIDAK_SHOLAT') return 'TIDAK SHOLAT';
+    return 'HALANGAN';
+  };
+
+  const getStatusStyles = (status: string) => {
+    if (status === 'HADIR') {
+      return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900';
+    }
+    if (status === 'TIDAK_SHOLAT') {
+      return 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900';
+    }
+    return 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900';
   };
 
   return (
@@ -107,12 +122,8 @@ const RekapTab: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                        <span className={`text-[8px] font-black px-2 py-1 rounded-lg border ${
-                            item.status === 'HADIR' 
-                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900' 
-                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900'
-                        }`}>
-                            {item.status === 'HADIR' ? 'SHOLAT' : 'HALANGAN'}
+                        <span className={`text-[8px] font-black px-2 py-1 rounded-lg border ${getStatusStyles(item.status)}`}>
+                            {getStatusLabel(item.status)}
                         </span>
                         <span className="text-[7px] text-slate-300 dark:text-slate-600 font-black uppercase">Oleh: {item.scannedBy || '-'}</span>
                     </div>
