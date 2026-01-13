@@ -18,17 +18,35 @@ const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(fireb
 export const db = app.database();
 
 // Helper for Local ISO Date
-export const getLocalDateString = () => {
+export const getLocalDateString = (offsetDays = 0) => {
   const d = new Date();
+  d.setDate(d.getDate() - offsetDays);
   const offset = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - offset).toISOString().split('T')[0];
 };
 
 // --- Attendance Functions ---
-export const saveAttendance = async (record: Omit<AttendanceRecord, 'id'>) => {
+export const saveAttendance = async (record: Omit<AttendanceRecord, 'id'>, id?: string) => {
   const dateStr = getLocalDateString();
   const path = `absensi/${dateStr}`;
-  await db.ref(path).push(record);
+  if (id) {
+    // Update existing record to prevent duplicates
+    await db.ref(`${path}/${id}`).set(record);
+  } else {
+    // Create new record
+    await db.ref(path).push(record);
+  }
+};
+
+export const checkIfAlreadyScanned = async (nama: string, kelas: string): Promise<AttendanceRecord | null> => {
+  const dateStr = getLocalDateString();
+  const snapshot = await db.ref(`absensi/${dateStr}`).once('value');
+  const data = snapshot.val();
+  if (!data) return null;
+  
+  // Map entries to include IDs so we can update them later if needed
+  const records = Object.entries(data).map(([key, value]: [string, any]) => ({ id: key, ...value }));
+  return records.find(r => r.nama === nama && r.kelas === kelas) || null;
 };
 
 export const subscribeToAttendance = (dateStr: string, callback: (data: AttendanceRecord[]) => void) => {
@@ -110,6 +128,38 @@ export const getDailyLeaderboard = (callback: (data: OfficerStat[]) => void) => 
         counts[r.scannedBy] = (counts[r.scannedBy] || 0) + 1;
       }
     });
+    const leaderboard = Object.entries(counts)
+      .map(([name, scanCount]) => ({ name, scanCount }))
+      .sort((a, b) => b.scanCount - a.scanCount)
+      .slice(0, 5);
+    callback(leaderboard);
+  });
+  return () => absensiRef.off('value', handler);
+};
+
+export const getWeeklyLeaderboard = (callback: (data: OfficerStat[]) => void) => {
+  const absensiRef = db.ref('absensi');
+  
+  const handler = absensiRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (!data) {
+      callback([]);
+      return;
+    }
+
+    const last7Days = Array.from({ length: 7 }, (_, i) => getLocalDateString(i));
+    const counts: Record<string, number> = {};
+
+    last7Days.forEach(dateKey => {
+      if (data[dateKey]) {
+        Object.values(data[dateKey]).forEach((r: any) => {
+          if (r.scannedBy) {
+            counts[r.scannedBy] = (counts[r.scannedBy] || 0) + 1;
+          }
+        });
+      }
+    });
+
     const leaderboard = Object.entries(counts)
       .map(([name, scanCount]) => ({ name, scanCount }))
       .sort((a, b) => b.scanCount - a.scanCount)
