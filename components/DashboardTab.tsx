@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
-import { subscribeToAttendance, getLocalDateString, getDailyLeaderboard, OfficerStat } from '../services/firebase';
+import { subscribeToAttendance, getLocalDateString, getDailyLeaderboard, getWeeklyLeaderboard, OfficerStat } from '../services/firebase';
 import { AttendanceRecord, Tab } from '../types';
-import { Users, Clock, Calendar, Activity, Sparkles, Zap, ArrowUpRight, Trophy, Target, TrendingUp, X } from 'lucide-react';
-import { motion, Variants } from 'framer-motion';
+import { Users, Clock, Calendar, Activity, Sparkles, Zap, ArrowUpRight, Trophy, Target, TrendingUp, X, Crown, Medal } from 'lucide-react';
+import { motion, Variants, AnimatePresence } from 'framer-motion';
 
 interface DashboardProps {
   changeTab: (tab: Tab) => void;
@@ -21,9 +22,11 @@ const formatDateFull = (date: Date) => {
 const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
   const [stats, setStats] = useState({ hadir: 0, halangan: 0, bolos: 0, total: 0 });
   const [leaderboard, setLeaderboard] = useState<OfficerStat[]>([]);
+  const [weeklyLeaderboard, setWeeklyLeaderboard] = useState<OfficerStat[]>([]);
   const [recent, setRecent] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [lbType, setLbType] = useState<'DAILY' | 'WEEKLY'>('DAILY');
 
   const TARGET_DAILY = 43;
 
@@ -39,11 +42,13 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
     });
 
     const unsubLeaderboard = getDailyLeaderboard(setLeaderboard);
+    const unsubWeekly = getWeeklyLeaderboard(setWeeklyLeaderboard);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
     return () => {
       unsubAttendance();
       unsubLeaderboard();
+      unsubWeekly();
       clearInterval(timer);
     };
   }, []);
@@ -60,8 +65,10 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
     show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 120 } }
   };
 
+  const currentLB = lbType === 'DAILY' ? leaderboard : weeklyLeaderboard;
+
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6 relative">
+    <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6 relative pb-20">
       {/* Hero Banner Compact */}
       <motion.div variants={itemVariants} className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 md:p-10 border border-white dark:border-white/5 shadow-xl relative overflow-hidden group transition-colors duration-300">
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -103,7 +110,7 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
         </div>
       </motion.div>
 
-      {/* Grid Utama */}
+      {/* Grid Utama Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard title="Total Scan" value={stats.total} icon={<Users size={18} />} color="emerald" />
         <StatCard title="Bolos" value={stats.bolos} icon={<X size={18} />} color="red" />
@@ -111,19 +118,79 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
         <StatCard title="Halangan" value={stats.halangan} icon={<Activity size={18} />} color="amber" />
       </div>
 
-      {/* Waktu & Aktivitas Compact */}
-      <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-5 rounded-[2rem] border border-white dark:border-white/5 shadow-lg flex items-center justify-between transition-colors duration-300">
-        <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400">
-                <Calendar size={18} />
-            </div>
-            <div>
-                <h4 className="font-black text-slate-800 dark:text-white text-[11px] leading-none">{formatDateFull(currentTime)}</h4>
-                <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Status Server: Online</p>
-            </div>
+      {/* Dynamic Leaderboard Section */}
+      <motion.div variants={itemVariants} className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 border border-slate-50 dark:border-white/5 shadow-xl transition-colors duration-300">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <h3 className="font-black text-slate-900 dark:text-white text-sm flex items-center gap-2">
+            <Trophy size={18} className="text-amber-500" /> 
+            Leaderboard Petugas
+          </h3>
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <button 
+              onClick={() => setLbType('DAILY')}
+              className={`px-4 py-1.5 rounded-lg text-[9px] font-black transition-all ${lbType === 'DAILY' ? 'bg-white dark:bg-slate-700 shadow text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}
+            >
+              HARIAN
+            </button>
+            <button 
+              onClick={() => setLbType('WEEKLY')}
+              className={`px-4 py-1.5 rounded-lg text-[9px] font-black transition-all ${lbType === 'WEEKLY' ? 'bg-white dark:bg-slate-700 shadow text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}
+            >
+              MINGGUAN
+            </button>
+          </div>
         </div>
-        <div className="text-emerald-600 dark:text-emerald-400 font-mono text-lg font-black">
-            {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           {/* Top 3 Podium */}
+           <div className="flex items-end justify-center gap-2 h-40 pb-2">
+              <PodiumItem rank={2} data={currentLB[1]} color="slate-400" height="h-[70%]" />
+              <PodiumItem rank={1} data={currentLB[0]} color="amber-400" height="h-[100%]" />
+              <PodiumItem rank={3} data={currentLB[2]} color="orange-400" height="h-[50%]" />
+           </div>
+
+           {/* Full Ranking List */}
+           <div className="space-y-2">
+              <AnimatePresence mode="wait">
+                <motion.div 
+                  key={lbType}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-2"
+                >
+                  {currentLB.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-300 py-10">
+                      <Medal size={40} className="mb-2 opacity-20" />
+                      <span className="text-[10px] font-black uppercase">Belum ada data</span>
+                    </div>
+                  ) : (
+                    currentLB.map((officer, i) => (
+                      <div key={officer.name} className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/50 rounded-2xl border border-transparent hover:border-slate-100 dark:hover:border-white/5 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${
+                             i === 0 ? 'bg-amber-100 text-amber-600' : 
+                             i === 1 ? 'bg-slate-100 text-slate-600' : 
+                             i === 2 ? 'bg-orange-100 text-orange-600' : 
+                             'bg-white dark:bg-slate-700 text-slate-400'
+                          }`}>
+                            #{i + 1}
+                          </div>
+                          <div>
+                            <span className="font-black text-slate-800 dark:text-white text-[11px] block">{officer.name}</span>
+                            <span className="text-[8px] font-bold text-slate-400 uppercase">Petugas Aktif</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-black text-emerald-600 dark:text-emerald-400 text-xs">{officer.scanCount}</span>
+                          <span className="text-[8px] font-bold text-slate-400 uppercase block">Scans</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </motion.div>
+              </AnimatePresence>
+           </div>
         </div>
       </motion.div>
 
@@ -165,6 +232,28 @@ const DashboardTab: React.FC<DashboardProps> = ({ changeTab, userName }) => {
         </div>
       </motion.div>
     </motion.div>
+  );
+};
+
+const PodiumItem = ({ rank, data, color, height }: { rank: number, data?: OfficerStat, color: string, height: string }) => {
+  if (!data) return <div className={`flex-1 ${height} bg-slate-50 dark:bg-slate-800/30 rounded-2xl opacity-50 border border-dashed border-slate-200 dark:border-slate-700`} />;
+  
+  return (
+    <div className="flex-1 flex flex-col items-center gap-2">
+      <div className="relative">
+        <div className={`w-10 h-10 rounded-full bg-${color} flex items-center justify-center text-white shadow-lg overflow-hidden border-2 border-white dark:border-slate-900`}>
+          {rank === 1 ? <Crown size={16} /> : <span className="font-black text-[10px]">{data.name.charAt(0)}</span>}
+        </div>
+        <div className={`absolute -bottom-1 -right-1 w-5 h-5 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow text-[8px] font-black text-${color}`}>
+          #{rank}
+        </div>
+      </div>
+      <div className={`w-full ${height} bg-${color} rounded-2xl relative overflow-hidden shadow-xl flex flex-col items-center justify-center p-1`}>
+         <div className="absolute inset-0 bg-white/10 dark:bg-black/10" />
+         <span className="relative z-10 text-[8px] font-black text-white truncate w-full text-center px-1 uppercase">{data.name}</span>
+         <span className="relative z-10 text-[10px] font-black text-white">{data.scanCount}</span>
+      </div>
+    </div>
   );
 };
 

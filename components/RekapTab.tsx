@@ -14,8 +14,12 @@ const RekapTab: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     const unsubscribe = subscribeToAttendance(date, (records) => {
-      setData(records);
-      setFilteredData(records);
+      // Sort records alphabetically by student name (nama)
+      const alphabeticalRecords = [...records].sort((a, b) => 
+        a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' })
+      );
+      setData(alphabeticalRecords);
+      setFilteredData(alphabeticalRecords);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -28,6 +32,7 @@ const RekapTab: React.FC = () => {
       item.kelas.toLowerCase().includes(lowerSearch) ||
       (item.scannedBy && item.scannedBy.toLowerCase().includes(lowerSearch))
     );
+    // Data is already sorted alphabetically, so filtered results will be too
     setFilteredData(filtered);
   }, [search, data]);
 
