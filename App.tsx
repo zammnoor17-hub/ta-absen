@@ -7,9 +7,9 @@ import RekapTab from './components/RekapTab';
 import DashboardTab from './components/DashboardTab';
 import AdminTab from './components/AdminTab';
 import { Tab, UserRole, AttendanceRecord } from './types';
-import { ShieldCheck, MessageCircle, Sparkles, Zap, Rocket, Moon, Sun } from 'lucide-react';
+import { ShieldCheck, MessageCircle, Sparkles, Zap, Rocket } from 'lucide-react';
 import { verifyAdmin, verifyOfficer, registerOfficer, subscribeToAttendance, getLocalDateString } from './services/firebase';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const LiveActivityTicker: React.FC = () => {
   const [lastRecord, setLastRecord] = useState<AttendanceRecord | null>(null);
@@ -99,7 +99,7 @@ const App: React.FC = () => {
           saveSession(form.username, '', 'SUPER_ADMIN');
           setActiveTab(Tab.ADMIN);
         } else {
-          alert("Admin credentials invalid!");
+          alert("Gagal Login: Username/Password salah atau Database Rules terkunci.");
         }
       } else {
         if (isRegister) {
@@ -109,7 +109,7 @@ const App: React.FC = () => {
              return;
           }
           await registerOfficer(form.username, form.password, form.kelas.toUpperCase());
-          alert("Pendaftaran berhasil! Silakan login dengan akun Anda.");
+          alert("Pendaftaran berhasil! Silakan login.");
           setIsRegister(false);
         } else {
           const result = await verifyOfficer(form.username, form.password);
@@ -121,7 +121,7 @@ const App: React.FC = () => {
         }
       }
     } catch (err: any) {
-      alert(err.message || "Terjadi kesalahan");
+      alert(err.message || "Terjadi kesalahan koneksi database.");
     } finally {
       setLoading(false);
     }
@@ -233,23 +233,6 @@ const App: React.FC = () => {
       />
       
       <main className="container mx-auto px-4 pt-20 md:pt-6 pb-28 md:pb-12 max-w-5xl">
-        
-        {/* Profile Info (Desktop Only) */}
-        <div className="hidden md:flex justify-end mb-6 gap-4">
-           <motion.div 
-            className="flex items-center gap-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl pl-4 pr-6 py-3 rounded-3xl shadow-lg border border-white dark:border-white/10"
-           >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-black shadow-md ${role === 'SUPER_ADMIN' ? 'bg-indigo-600' : 'bg-emerald-600'}`}>
-                {user.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex flex-col">
-                <span className="font-black text-slate-800 dark:text-white leading-none text-xs">{user}</span>
-                <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-black uppercase mt-1 tracking-wider">{role === 'SUPER_ADMIN' ? 'ADMIN' : `OFFICER • ${userClass}`}</span>
-              </div>
-              <button onClick={handleLogout} className="text-red-500 dark:text-red-400 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-l border-slate-100 dark:border-slate-800 ml-3">Keluar</button>
-           </motion.div>
-        </div>
-
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
