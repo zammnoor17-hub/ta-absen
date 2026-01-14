@@ -30,23 +30,25 @@ export const saveAttendance = async (record: Omit<AttendanceRecord, 'id'>, id?: 
   const dateStr = getLocalDateString();
   const path = `absensi/${dateStr}`;
   if (id) {
-    // Update existing record to prevent duplicates
     await db.ref(`${path}/${id}`).set(record);
   } else {
-    // Create new record
     await db.ref(path).push(record);
   }
 };
 
 export const checkIfAlreadyScanned = async (nama: string, kelas: string): Promise<AttendanceRecord | null> => {
-  const dateStr = getLocalDateString();
-  const snapshot = await db.ref(`absensi/${dateStr}`).once('value');
-  const data = snapshot.val();
-  if (!data) return null;
-  
-  // Map entries to include IDs so we can update them later if needed
-  const records = Object.entries(data).map(([key, value]: [string, any]) => ({ id: key, ...value }));
-  return records.find(r => r.nama === nama && r.kelas === kelas) || null;
+  try {
+    const dateStr = getLocalDateString();
+    const snapshot = await db.ref(`absensi/${dateStr}`).once('value');
+    const data = snapshot.val();
+    if (!data) return null;
+    
+    const records = Object.entries(data).map(([key, value]: [string, any]) => ({ id: key, ...value }));
+    return records.find(r => r.nama === nama && r.kelas === kelas) || null;
+  } catch (e) {
+    console.error("Duplicate check error:", e);
+    return null;
+  }
 };
 
 export const subscribeToAttendance = (dateStr: string, callback: (data: AttendanceRecord[]) => void) => {
@@ -75,30 +77,39 @@ export const registerOfficer = async (username: string, pass: string, kelas: str
 };
 
 export const verifyOfficer = async (username: string, pass: string): Promise<{username: string, kelas: string} | null> => {
-  const officerRef = db.ref(`config/officers/${username}`);
-  const snapshot = await officerRef.once('value');
-  const data = snapshot.val();
-  if (data && data.password === pass) {
-    return { username: data.username, kelas: data.kelas };
+  try {
+    const officerRef = db.ref(`config/officers/${username}`);
+    const snapshot = await officerRef.once('value');
+    const data = snapshot.val();
+    if (data && data.password === pass) {
+      return { username: data.username, kelas: data.kelas };
+    }
+    return null;
+  } catch (e) {
+    throw new Error("Gagal terhubung ke Database. Cek koneksi atau Rules.");
   }
-  return null;
 };
 
 // --- Admin Auth Functions ---
 export const verifyAdmin = async (username: string, pass: string): Promise<boolean> => {
-  const adminRef = db.ref('config/admins');
-  const snapshot = await adminRef.once('value');
-  const admins = snapshot.val();
-  
-  if (!admins) {
-    if (username === 'admin' && pass === '123') {
-      await db.ref('config/admins/admin').set({ username: 'admin', password: '123', role: 'SUPER_ADMIN' });
-      return true;
+  try {
+    const adminRef = db.ref('config/admins');
+    const snapshot = await adminRef.once('value');
+    const admins = snapshot.val();
+    
+    // Jika admin belum ada sama sekali, buat default admin
+    if (!admins) {
+      if (username === 'admin' && pass === '123') {
+        await db.ref('config/admins/admin').set({ username: 'admin', password: '123', role: 'SUPER_ADMIN' });
+        return true;
+      }
+      return false;
     }
-    return false;
-  }
 
-  return Object.values(admins).some((a: any) => a.username === username && a.password === pass);
+    return Object.values(admins).some((a: any) => a.username === username && a.password === pass);
+  } catch (e) {
+    throw new Error("Akses Ditolak. Pastikan Database Rules sudah diset ke 'true'.");
+  }
 };
 
 export const updateAdminAccount = async (oldUsername: string, newData: AdminAccount) => {
@@ -106,7 +117,7 @@ export const updateAdminAccount = async (oldUsername: string, newData: AdminAcco
   await db.ref(`config/admins/${newData.username}`).set(newData);
 };
 
-// --- Stats & Leaderboard ---
+// --- Leaderboard & Stats ---
 export interface OfficerStat {
   name: string;
   scanCount: number;
@@ -139,17 +150,14 @@ export const getDailyLeaderboard = (callback: (data: OfficerStat[]) => void) => 
 
 export const getWeeklyLeaderboard = (callback: (data: OfficerStat[]) => void) => {
   const absensiRef = db.ref('absensi');
-  
   const handler = absensiRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if (!data) {
       callback([]);
       return;
     }
-
     const last7Days = Array.from({ length: 7 }, (_, i) => getLocalDateString(i));
     const counts: Record<string, number> = {};
-
     last7Days.forEach(dateKey => {
       if (data[dateKey]) {
         Object.values(data[dateKey]).forEach((r: any) => {
@@ -159,7 +167,6 @@ export const getWeeklyLeaderboard = (callback: (data: OfficerStat[]) => void) =>
         });
       }
     });
-
     const leaderboard = Object.entries(counts)
       .map(([name, scanCount]) => ({ name, scanCount }))
       .sort((a, b) => b.scanCount - a.scanCount)
@@ -171,12 +178,10 @@ export const getWeeklyLeaderboard = (callback: (data: OfficerStat[]) => void) =>
 
 export const getAllStats = (callback: (data: { totalScans: number, officers: Record<string, OfficerStat[]> }) => void) => {
   const absensiRef = db.ref('absensi');
-
   const handler = absensiRef.on('value', (snapshot) => {
     const data = snapshot.val();
     let total = 0;
     const officerDetailsMap: Record<string, Record<string, number>> = {};
-    
     if (data) {
       Object.values(data).forEach((dayRecords: any) => {
         const records = Object.values(dayRecords) as AttendanceRecord[];
@@ -191,7 +196,6 @@ export const getAllStats = (callback: (data: { totalScans: number, officers: Rec
         });
       });
     }
-
     const officers: Record<string, OfficerStat[]> = {};
     Object.keys(officerDetailsMap).forEach(cls => {
       officers[cls] = Object.entries(officerDetailsMap[cls]).map(([name, scanCount]) => ({
@@ -199,7 +203,6 @@ export const getAllStats = (callback: (data: { totalScans: number, officers: Rec
         scanCount
       })).sort((a, b) => b.scanCount - a.scanCount);
     });
-
     callback({ totalScans: total, officers });
   });
   return () => absensiRef.off('value', handler);
