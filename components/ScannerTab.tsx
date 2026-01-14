@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { StudentData, AttendanceRecord } from '../types';
 import { saveAttendance, checkIfAlreadyScanned } from '../services/firebase';
-import { Check, Camera, Sparkles, X, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Check, Camera, Sparkles, X, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const playBeep = (freq: number, type: OscillatorType, dur: number) => {
@@ -32,10 +32,7 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
   const [duplicateFound, setDuplicateFound] = useState<AttendanceRecord | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
-  const [showConfetti, setShowConfetti] = useState(false);
   const [checking, setChecking] = useState(false);
-  
-  // Track if we are in "Update" mode
   const [updateId, setUpdateId] = useState<string | null>(null);
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -77,26 +74,31 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
   }, []);
 
   const handleScanSuccess = async (decodedText: string) => {
-    if (scannerRef.current?.isScanning) {
-        scannerRef.current.pause(); 
-        setIsScanning(false);
-    }
     try {
+      // Pause scanner sejenak
+      if (scannerRef.current?.isScanning) {
+          scannerRef.current.pause();
+          setIsScanning(false);
+      }
+
       const data: StudentData = JSON.parse(decodedText);
       if (data.nama && data.kelas) {
         setChecking(true);
         const existing = await checkIfAlreadyScanned(data.nama, data.kelas);
-        setChecking(false);
         
-        if (existing) {
-            playBeep(440, 'triangle', 0.3);
-            setDuplicateFound(existing);
-        } else {
-            setScannedStudent(data);
-            setUpdateId(null);
-            playBeep(880, 'sine', 0.1);
-        }
-        
+        // Timeout sedikit agar transisi checking tidak kaget
+        setTimeout(() => {
+            setChecking(false);
+            if (existing) {
+                playBeep(440, 'triangle', 0.3);
+                setDuplicateFound(existing);
+            } else {
+                setScannedStudent(data);
+                setUpdateId(null);
+                playBeep(880, 'sine', 0.1);
+            }
+        }, 500);
+
         if (navigator.vibrate) navigator.vibrate(50);
       } else throw new Error();
     } catch (e) {
@@ -132,21 +134,18 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
         officerKelas: officerClass
       };
 
+      // Reset UI states dulu
       setScannedStudent(null);
       setDuplicateFound(null);
       setSuccessMsg(updateId ? `DATA DIUPDATE: ${student.nama}` : `BERHASIL: ${student.nama}`);
-      setShowConfetti(true);
       
-      // Pass the updateId to saveAttendance so it updates instead of pushes
       await saveAttendance(recordToSave, updateId || undefined);
       setUpdateId(null);
-
       playBeep(1200, 'sine', 0.2);
 
       setTimeout(() => {
         if(isMounted.current) {
             setSuccessMsg('');
-            setShowConfetti(false);
             scannerRef.current?.resume();
             setIsScanning(true);
         }
@@ -168,19 +167,24 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
 
   return (
     <div className="flex flex-col items-center py-4 relative">
-      {checking && (
-        <div className="fixed inset-0 z-[300] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center">
+      {/* Checking Overlay */}
+      <AnimatePresence>
+        {checking && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center"
+          >
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-2xl flex flex-col items-center gap-4">
                 <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-widest">Memeriksa Duplikat...</span>
+                <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-widest">Memeriksa Data...</span>
             </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-6 bg-white dark:bg-slate-900 px-5 py-2 rounded-xl flex items-center gap-2 border border-slate-100 dark:border-white/5 shadow-md transition-colors"
+        initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+        className="mb-6 bg-white dark:bg-slate-900 px-5 py-2 rounded-xl flex items-center gap-2 border border-slate-100 dark:border-white/5 shadow-md"
       >
          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
          <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
@@ -189,9 +193,8 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
       </motion.div>
 
       <motion.div 
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="relative w-full aspect-square max-w-[300px] bg-slate-900 rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white dark:border-slate-800 group"
+        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        className="relative w-full aspect-square max-w-[300px] bg-slate-900 rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white dark:border-slate-800"
       >
          <div id="reader" className="w-full h-full scale-110"></div>
          {isScanning && !scannedStudent && !duplicateFound && <div className="scan-line"></div>}
@@ -200,10 +203,11 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
          </div>
       </motion.div>
 
-      <div className="mt-8 text-center space-y-1">
-        <div className="text-slate-400 dark:text-slate-500 font-black text-[9px] uppercase tracking-widest">Scanning Active</div>
-        <div className="text-slate-300 dark:text-slate-700 text-[8px] font-bold">Arahkan ke QR Code Siswa</div>
-      </div>
+      {errorMsg && (
+          <div className="mt-4 text-red-500 font-black text-[10px] uppercase tracking-widest animate-bounce">
+              {errorMsg}
+          </div>
+      )}
 
       {/* Warning Duplikat Modal */}
       <AnimatePresence>
@@ -216,29 +220,28 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
               initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
               className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl relative border dark:border-white/5 text-center"
             >
-              <div className="w-20 h-20 bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
+              <div className="w-20 h-20 bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
                  <AlertTriangle size={40} />
               </div>
-              <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Sudah Absen!</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
-                Siswa <span className="text-slate-900 dark:text-white font-black">{duplicateFound.nama}</span> sudah absen hari ini jam <span className="font-mono font-black">{duplicateFound.jam}</span> oleh <span className="font-black">{duplicateFound.scannedBy}</span>.
+              <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase">Sudah Absen!</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                Siswa <span className="font-black text-slate-900 dark:text-white">{duplicateFound.nama}</span> sudah absen jam <span className="font-mono">{duplicateFound.jam}</span>.
               </p>
               
               <div className="mt-8 space-y-3">
                  <button 
                    onClick={() => {
-                     const student = { ...duplicateFound };
-                     setUpdateId(duplicateFound.id); // Save the ID for updating
+                     setUpdateId(duplicateFound.id);
+                     setScannedStudent({ nama: duplicateFound.nama, kelas: duplicateFound.kelas, gender: duplicateFound.gender });
                      setDuplicateFound(null);
-                     setScannedStudent(student);
                    }}
-                   className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] tracking-widest uppercase shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                   className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] tracking-widest uppercase shadow-lg shadow-emerald-500/20"
                  >
                    Ganti Status (Update)
                  </button>
                  <button 
                    onClick={cancelScan}
-                   className="w-full py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-black text-[10px] tracking-widest uppercase active:scale-95 transition-all"
+                   className="w-full py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-black text-[10px] tracking-widest uppercase"
                  >
                    Batalkan
                  </button>
@@ -248,22 +251,23 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
         )}
       </AnimatePresence>
 
+      {/* Modal Pilihan Status */}
       <AnimatePresence>
-        {scannedStudent && (
+        {scannedStudent && !duplicateFound && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[150] bg-slate-900/80 dark:bg-black/90 backdrop-blur-md flex items-center justify-center p-6"
           >
               <motion.div 
                 initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
-                className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl relative border dark:border-white/5"
+                className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl border dark:border-white/5"
               >
                 <div className="flex flex-col items-center text-center">
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white mb-4 shadow-lg ${scannedStudent.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>
                      {scannedStudent.nama.charAt(0)}
                   </div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{scannedStudent.nama}</h2>
-                  <div className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-2 mb-8 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1 rounded-full border dark:border-emerald-800/50">{scannedStudent.kelas}</div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">{scannedStudent.nama}</h2>
+                  <div className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-2 mb-8 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1 rounded-full">{scannedStudent.kelas}</div>
                 </div>
 
                 <div className="flex flex-col gap-3">
@@ -271,7 +275,7 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
                     <motion.button 
                       whileTap={{ scale: 0.9 }}
                       onClick={() => handleConfirm('HADIR')} 
-                      className="flex flex-col items-center justify-center py-4 bg-emerald-600 dark:bg-emerald-500 text-white rounded-2xl font-black shadow-lg"
+                      className="flex flex-col items-center justify-center py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg"
                     >
                       <Check size={24} strokeWidth={3} />
                       <span className="text-[9px] uppercase mt-1">SHOLAT</span>
@@ -279,7 +283,7 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
                     <motion.button 
                       whileTap={{ scale: 0.9 }}
                       onClick={() => handleConfirm('TIDAK_SHOLAT')} 
-                      className="flex flex-col items-center justify-center py-4 bg-red-600 dark:bg-red-500 text-white rounded-2xl font-black shadow-lg"
+                      className="flex flex-col items-center justify-center py-4 bg-red-600 text-white rounded-2xl font-black shadow-lg"
                     >
                       <X size={24} strokeWidth={3} />
                       <span className="text-[9px] uppercase mt-1">BOLOS</span>
@@ -288,7 +292,7 @@ const ScannerTab: React.FC<ScannerTabProps> = ({ currentUser, officerClass }) =>
                   <motion.button 
                     whileTap={{ scale: 0.9 }}
                     onClick={() => handleConfirm('HALANGAN')} 
-                    className="py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200 dark:border-slate-700"
+                    className="py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest"
                   >
                     HALANGAN (UDZUR)
                   </motion.button>
