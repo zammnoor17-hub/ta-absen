@@ -12,7 +12,6 @@ apiKey: "AIzaSyBCNPKx6Qnl_mPdGwuLlqOx9cI7fRhcwOE",
   storageBucket: "absfor.firebasestorage.app",
   messagingSenderId: "815942958330",
   appId: "1:815942958330:web:69ead6ba0a7af82e3e9d43",
-  measurementId: "G-4085YTB8CL"
 };
 
 const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
