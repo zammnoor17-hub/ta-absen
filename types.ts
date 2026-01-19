@@ -1,16 +1,29 @@
+
 export interface StudentData {
   nama: string;
   kelas: string;
   gender: 'L' | 'P';
 }
 
+export interface MasterStudent extends StudentData {
+  id: string; // ID unik (biasanya nama-kelas)
+}
+
+// Added OfficerStat interface
+export interface OfficerStat {
+  name: string;
+  scanCount: number;
+}
+
+export type AttendanceStatus = 'HADIR' | 'ALPHA' | 'SAKIT' | 'IZIN';
+
 export interface AttendanceRecord extends StudentData {
-  id: string;
+  id?: string;
   timestamp: number;
   jam: string;
-  status: 'HADIR' | 'HALANGAN' | 'TIDAK_SHOLAT';
+  status: AttendanceStatus;
   scannedBy: string;
-  officerKelas?: string; // Menambahkan informasi kelas petugas
+  officerKelas?: string;
 }
 
 export interface AdminAccount {
