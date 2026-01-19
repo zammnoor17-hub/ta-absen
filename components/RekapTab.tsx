@@ -28,10 +28,13 @@ const RekapTab: React.FC = () => {
 
   const getStatusLabel = (status: string) => {
     switch(status) {
-      case 'HADIR': return 'SHOLAT';
-      case 'ALPHA': return 'TIDAK SHOLAT';
+      case 'HADIR': return 'HADIR';
+      case 'ALPHA': return 'ALPHA';
       case 'IZIN': return 'IZIN';
       case 'SAKIT': return 'SAKIT';
+      case 'SHOLAT': return 'SHOLAT';
+      case 'TIDAK SHOLAT': return 'TIDAK SHOLAT';
+       case 'HALANGAN': return 'HALANGAN';
       default: return status;
     }
   };
