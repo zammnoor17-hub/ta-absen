@@ -1,11 +1,13 @@
 
-// Import Firebase v8 compat API
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/database';
-import { AttendanceRecord, AdminAccount } from '../types';
+import { AttendanceRecord, AdminAccount, MasterStudent, AttendanceStatus, OfficerStat } from '../types';
+
+// Re-export OfficerStat for components that import it from here
+export type { OfficerStat };
 
 const firebaseConfig = {
-apiKey: "AIzaSyBCNPKx6Qnl_mPdGwuLlqOx9cI7fRhcwOE",
+  apiKey: "AIzaSyBCNPKx6Qnl_mPdGwuLlqOx9cI7fRhcwOE",
   authDomain: "absfor.firebaseapp.com",
   databaseURL: "https://absfor-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "absfor",
@@ -17,7 +19,6 @@ apiKey: "AIzaSyBCNPKx6Qnl_mPdGwuLlqOx9cI7fRhcwOE",
 const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
 export const db = app.database();
 
-// Helper for Local ISO Date
 export const getLocalDateString = (offsetDays = 0) => {
   const d = new Date();
   d.setDate(d.getDate() - offsetDays);
@@ -25,15 +26,37 @@ export const getLocalDateString = (offsetDays = 0) => {
   return new Date(d.getTime() - offset).toISOString().split('T')[0];
 };
 
-// --- Attendance Functions ---
+// --- Master Students ---
+export const saveMasterStudent = async (student: MasterStudent) => {
+  await db.ref(`config/master_students/${student.id}`).set(student);
+};
+
+export const deleteMasterStudent = async (id: string) => {
+  await db.ref(`config/master_students/${id}`).remove();
+};
+
+export const subscribeToMasterStudents = (callback: (students: MasterStudent[]) => void) => {
+  const ref = db.ref('config/master_students');
+  const handler = ref.on('value', (snap) => {
+    const data = snap.val();
+    const students = data ? Object.values(data) as MasterStudent[] : [];
+    callback(students.sort((a, b) => a.nama.localeCompare(b.nama)));
+  });
+  return () => ref.off('value', handler);
+};
+
+// --- Attendance Logic ---
+export const updateDailyStatus = async (studentId: string, record: AttendanceRecord) => {
+  const dateStr = getLocalDateString();
+  await db.ref(`absensi/${dateStr}/${studentId}`).set(record);
+};
+
 export const saveAttendance = async (record: Omit<AttendanceRecord, 'id'>, id?: string) => {
   const dateStr = getLocalDateString();
   const path = `absensi/${dateStr}`;
-  if (id) {
-    await db.ref(`${path}/${id}`).set(record);
-  } else {
-    await db.ref(path).push(record);
-  }
+  // Gunakan ID unik dari siswa jika tersedia untuk memudahkan tracking
+  const targetId = id || `${record.nama}-${record.kelas}`.replace(/[.#$/[\]]/g, "_");
+  await db.ref(`${path}/${targetId}`).set(record);
 };
 
 export const checkIfAlreadyScanned = async (nama: string, kelas: string): Promise<AttendanceRecord | null> => {
@@ -42,187 +65,119 @@ export const checkIfAlreadyScanned = async (nama: string, kelas: string): Promis
     const snapshot = await db.ref(`absensi/${dateStr}`).once('value');
     const data = snapshot.val();
     if (!data) return null;
-    
     const records = Object.entries(data).map(([key, value]: [string, any]) => ({ id: key, ...value }));
     return records.find(r => r.nama === nama && r.kelas === kelas) || null;
-  } catch (e) {
-    console.error("Duplicate check error:", e);
-    return null;
-  }
+  } catch (e) { return null; }
 };
 
 export const subscribeToAttendance = (dateStr: string, callback: (data: AttendanceRecord[]) => void) => {
-  const path = `absensi/${dateStr}`;
-  const query = db.ref(path).orderByChild('timestamp');
+  const query = db.ref(`absensi/${dateStr}`).orderByChild('timestamp');
   const handler = query.on('value', (snapshot) => {
     const data = snapshot.val();
     const records = data ? Object.entries(data).map(([key, value]: [string, any]) => ({ id: key, ...value })) : [];
-    callback(records.reverse());
+    callback(records.sort((a, b) => a.nama.localeCompare(b.nama)));
   });
   return () => query.off('value', handler);
 };
 
-// --- Officer Account Functions ---
-export const registerOfficer = async (username: string, pass: string, kelas: string) => {
-  const officerRef = db.ref(`config/officers/${username}`);
-  const snapshot = await officerRef.once('value');
-  if (snapshot.exists()) throw new Error("Username sudah terpakai");
-  
-  await officerRef.set({
-    username,
-    password: pass,
-    kelas,
-    role: 'OFFICER'
-  });
-};
-
-export const verifyOfficer = async (username: string, pass: string): Promise<{username: string, kelas: string} | null> => {
-  try {
-    const officerRef = db.ref(`config/officers/${username}`);
-    const snapshot = await officerRef.once('value');
-    const data = snapshot.val();
-    if (data && data.password === pass) {
-      return { username: data.username, kelas: data.kelas };
-    }
-    return null;
-  } catch (e) {
-    throw new Error("Gagal terhubung ke Database. Cek koneksi atau Rules.");
-  }
-};
-
-// --- Admin Auth Functions ---
-export const verifyAdmin = async (username: string, pass: string): Promise<boolean> => {
-  try {
-    const adminRef = db.ref('config/admins');
-    const snapshot = await adminRef.once('value');
-    const admins = snapshot.val();
-    
-    // Jika admin belum ada sama sekali, buat default admin
-    if (!admins) {
-      if (username === 'admin' && pass === '123') {
-        await db.ref('config/admins/admin').set({ username: 'admin', password: '123', role: 'SUPER_ADMIN' });
-        return true;
-      }
-      return false;
-    }
-
-    return Object.values(admins).some((a: any) => a.username === username && a.password === pass);
-  } catch (e) {
-    throw new Error("Akses Ditolak. Pastikan Database Rules sudah diset ke 'true'.");
-  }
-};
-
-export const updateAdminAccount = async (oldUsername: string, newData: AdminAccount) => {
-  await db.ref(`config/admins/${oldUsername}`).set(null);
-  await db.ref(`config/admins/${newData.username}`).set(newData);
-};
-
-// --- Leaderboard & Stats ---
-export interface OfficerStat {
-  name: string;
-  scanCount: number;
-}
-
-export const getDailyLeaderboard = (callback: (data: OfficerStat[]) => void) => {
-  const dateStr = getLocalDateString();
-  const absensiRef = db.ref(`absensi/${dateStr}`);
-  
-  const handler = absensiRef.on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (!data) {
-      callback([]);
-      return;
-    }
-    const counts: Record<string, number> = {};
-    Object.values(data).forEach((r: any) => {
-      if (r.scannedBy) {
-        counts[r.scannedBy] = (counts[r.scannedBy] || 0) + 1;
-      }
-    });
-    const leaderboard = Object.entries(counts)
-      .map(([name, scanCount]) => ({ name, scanCount }))
-      .sort((a, b) => b.scanCount - a.scanCount)
-      .slice(0, 5);
-    callback(leaderboard);
-  });
-  return () => absensiRef.off('value', handler);
-};
-
-export const getWeeklyLeaderboard = (callback: (data: OfficerStat[]) => void) => {
-  const absensiRef = db.ref('absensi');
-  const handler = absensiRef.on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (!data) {
-      callback([]);
-      return;
-    }
-    const last7Days = Array.from({ length: 7 }, (_, i) => getLocalDateString(i));
-    const counts: Record<string, number> = {};
-    last7Days.forEach(dateKey => {
-      if (data[dateKey]) {
-        Object.values(data[dateKey]).forEach((r: any) => {
-          if (r.scannedBy) {
-            counts[r.scannedBy] = (counts[r.scannedBy] || 0) + 1;
-          }
-        });
-      }
-    });
-    const leaderboard = Object.entries(counts)
-      .map(([name, scanCount]) => ({ name, scanCount }))
-      .sort((a, b) => b.scanCount - a.scanCount)
-      .slice(0, 5);
-    callback(leaderboard);
-  });
-  return () => absensiRef.off('value', handler);
-};
-
-export const getAllStats = (callback: (data: { totalScans: number, officers: Record<string, OfficerStat[]> }) => void) => {
-  const absensiRef = db.ref('absensi');
-  const handler = absensiRef.on('value', (snapshot) => {
-    const data = snapshot.val();
-    let total = 0;
-    const officerDetailsMap: Record<string, Record<string, number>> = {};
-    if (data) {
-      Object.values(data).forEach((dayRecords: any) => {
-        const records = Object.values(dayRecords) as AttendanceRecord[];
-        total += records.length;
-        records.forEach((r) => { 
-          if(r.scannedBy) {
-            const cls = r.officerKelas || 'Tanpa Kelas';
-            if (!officerDetailsMap[cls]) officerDetailsMap[cls] = {};
-            if (!officerDetailsMap[cls][r.scannedBy]) officerDetailsMap[cls][r.scannedBy] = 0;
-            officerDetailsMap[cls][r.scannedBy]++;
-          }
-        });
-      });
-    }
-    const officers: Record<string, OfficerStat[]> = {};
-    Object.keys(officerDetailsMap).forEach(cls => {
-      officers[cls] = Object.entries(officerDetailsMap[cls]).map(([name, scanCount]) => ({
-        name,
-        scanCount
-      })).sort((a, b) => b.scanCount - a.scanCount);
-    });
-    callback({ totalScans: total, officers });
-  });
-  return () => absensiRef.off('value', handler);
-};
-
-export const deleteOfficerRecords = async (officerName: string) => {
-  const updates: Record<string, any> = {};
-  updates[`config/officers/${officerName}`] = null;
-  const absensiRef = db.ref('absensi');
-  const snapshot = await absensiRef.once('value');
+// --- Authentication ---
+export const verifyOfficer = async (username: string, pass: string) => {
+  const snapshot = await db.ref(`config/officers/${username}`).once('value');
   const data = snapshot.val();
-  if (data) {
-    Object.keys(data).forEach((dateStr) => {
-      const dayRecords = data[dateStr];
-      Object.keys(dayRecords).forEach((recordId) => {
-        if (dayRecords[recordId].scannedBy === officerName) {
-          updates[`absensi/${dateStr}/${recordId}`] = null;
+  if (data && data.password === pass) return data;
+  return null;
+};
+
+export const verifyAdmin = async (username: string, pass: string) => {
+  const snapshot = await db.ref('config/admins').once('value');
+  const admins = snapshot.val();
+  if (!admins && username === 'admin' && pass === '123') {
+    await db.ref('config/admins/admin').set({ username: 'admin', password: '123', role: 'SUPER_ADMIN' });
+    return true;
+  }
+  return admins && Object.values(admins).some((a: any) => a.username === username && a.password === pass);
+};
+
+export const registerOfficer = async (u: string, p: string, k: string) => {
+  const ref = db.ref(`config/officers/${u}`);
+  const snap = await ref.once('value');
+  if (snap.exists()) throw new Error("Username sudah terpakai.");
+  await ref.set({ username: u, password: p, kelas: k, role: 'OFFICER' });
+};
+
+export const getAllStats = (callback: (data: any) => void) => {
+  const ref = db.ref('absensi');
+  const handler = ref.on('value', (snap) => {
+    const data = snap.val() || {};
+    let total = 0;
+    const officerMap: Record<string, Record<string, number>> = {};
+    
+    Object.values(data).forEach((dayRecords: any) => {
+      Object.values(dayRecords).forEach((r: any) => {
+        total++;
+        if (r.scannedBy && r.officerKelas) {
+          if (!officerMap[r.officerKelas]) officerMap[r.officerKelas] = {};
+          const classStats = officerMap[r.officerKelas];
+          classStats[r.scannedBy] = (classStats[r.scannedBy] || 0) + 1;
         }
       });
     });
-  }
+
+    const formattedOfficers: Record<string, any[]> = {};
+    Object.entries(officerMap).forEach(([kelas, officers]) => {
+      formattedOfficers[kelas] = Object.entries(officers).map(([name, count]) => ({
+        name,
+        scanCount: count as number
+      }));
+    });
+
+    callback({ totalScans: total, officers: formattedOfficers });
+  });
+  return () => ref.off('value', handler);
+};
+
+export const updateAdminAccount = async (oldU: string, data: AdminAccount) => {
+  if (oldU !== data.username) await db.ref(`config/admins/${oldU}`).remove();
+  await db.ref(`config/admins/${data.username}`).set(data);
+};
+
+export const deleteOfficerRecords = async (name: string) => {
+  const snapshot = await db.ref('absensi').once('value');
+  const data = snapshot.val();
+  if (!data) return;
+  const updates: any = {};
+  Object.entries(data).forEach(([dateStr, dayRecords]: [string, any]) => {
+    Object.entries(dayRecords).forEach(([key, record]: [string, any]) => {
+      if (record.scannedBy === name) updates[`absensi/${dateStr}/${key}`] = null;
+    });
+  });
   await db.ref().update(updates);
+  await db.ref(`config/officers/${name}`).remove();
+};
+
+export const getLeaderboards = (callback: (daily: OfficerStat[], weekly: OfficerStat[]) => void) => {
+  const ref = db.ref('absensi');
+  const handler = ref.on('value', (snap) => {
+    const data = snap.val() || {};
+    const today = getLocalDateString();
+    const dailyCounts: Record<string, number> = {};
+    const weeklyCounts: Record<string, number> = {};
+
+    Object.entries(data).forEach(([dateStr, records]: [string, any]) => {
+      Object.values(records).forEach((r: any) => {
+        if (!r.scannedBy) return;
+        if (dateStr === today) dailyCounts[r.scannedBy] = (dailyCounts[r.scannedBy] || 0) + 1;
+        weeklyCounts[r.scannedBy] = (weeklyCounts[r.scannedBy] || 0) + 1;
+      });
+    });
+
+    const format = (counts: Record<string, number>): OfficerStat[] => 
+      Object.entries(counts)
+        .map(([name, scanCount]) => ({ name, scanCount }))
+        .sort((a, b) => b.scanCount - a.scanCount)
+        .slice(0, 5);
+
+    callback(format(dailyCounts), format(weeklyCounts));
+  });
+  return () => ref.off('value', handler);
 };
