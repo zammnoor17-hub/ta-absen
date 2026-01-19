@@ -16,12 +16,13 @@ const DashboardTab: React.FC<{ changeTab: (tab: Tab) => void; userName: string }
   const TARGET = 45; 
 
   useEffect(() => {
-    const unsubA = subscribeToAttendance(getLocalDateString(), (records) => {
+    const unsub = subscribeToAttendance(getLocalDateString(), (records) => {
       setStats({
-        hadir: records.filter(r => r.status === 'HADIR').length,
+        // Agregasi Status: Scan + Manual
+        hadir: records.filter(r => r.status === 'HADIR' || r.status === 'SCAN_HADIR').length,
         sakit: records.filter(r => r.status === 'SAKIT').length,
-        izin: records.filter(r => r.status === 'IZIN').length,
-        alpha: records.filter(r => r.status === 'ALPHA').length,
+        izin: records.filter(r => r.status === 'IZIN' || r.status === 'SCAN_IZIN').length,
+        alpha: records.filter(r => r.status === 'ALPHA' || r.status === 'SCAN_ALPHA').length,
         total: records.length
       });
       setRecent(records.slice(-5).reverse());
@@ -30,11 +31,24 @@ const DashboardTab: React.FC<{ changeTab: (tab: Tab) => void; userName: string }
 
     const unsubL = getLeaderboards((d, w) => { setDailyLB(d); setWeeklyLB(w); });
 
-    return () => { unsubA(); unsubL(); };
+    return () => { unsub(); unsubL(); };
   }, []);
 
   const progress = Math.min((stats.hadir / TARGET) * 100, 100);
   const activeLB = lbType === 'DAILY' ? dailyLB : weeklyLB;
+
+  const getStatusLabel = (status: string) => {
+    switch(status) {
+      case 'SCAN_HADIR': return 'SHOLAT';
+      case 'SCAN_ALPHA': return 'TIDAK SHOLAT';
+      case 'SCAN_IZIN': return 'HALANGAN';
+      case 'HADIR': return 'HADIR (M)';
+      case 'ALPHA': return 'ALPHA (M)';
+      case 'IZIN': return 'IZIN (M)';
+      case 'SAKIT': return 'SAKIT (M)';
+      default: return status;
+    }
+  };
 
   return (
     <div className="space-y-6 pb-24 px-2 max-w-lg mx-auto">
@@ -70,56 +84,13 @@ const DashboardTab: React.FC<{ changeTab: (tab: Tab) => void; userName: string }
 
       {/* Modern Grid Stats */}
       <div className="grid grid-cols-2 gap-4">
-        <StatCard label="Hadir" value={stats.hadir} icon={<Zap size={22}/>} color="emerald" />
+        <StatCard label="Hadir/Sholat" value={stats.hadir} icon={<Zap size={22}/>} color="emerald" />
         <StatCard label="Sakit" value={stats.sakit} icon={<HeartPulse size={22}/>} color="amber" />
-        <StatCard label="Izin" value={stats.izin} icon={<FileText size={22}/>} color="blue" />
-        <StatCard label="Alpha" value={stats.alpha} icon={<Ghost size={22}/>} color="red" />
+        <StatCard label="Izin/Halangan" value={stats.izin} icon={<FileText size={22}/>} color="blue" />
+        <StatCard label="Alpha/Tdk Sholat" value={stats.alpha} icon={<Ghost size={22}/>} color="red" />
       </div>
 
-      {/* Leaderboard Card */}
-      <div className="glass-card rounded-[3rem] p-8 shadow-2xl border border-white/10">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
-          <h3 className="font-black text-slate-900 dark:text-white text-xs uppercase tracking-[0.2em] flex items-center gap-3">
-            <Trophy size={20} className="text-amber-500" /> Leaderboard Petugas
-          </h3>
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl">
-            {['DAILY', 'WEEKLY'].map(type => (
-              <button key={type} onClick={() => setLbType(type as any)} className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all ${lbType === type ? 'bg-white dark:bg-slate-700 shadow-lg text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
-                {type === 'DAILY' ? 'HARIAN' : 'MINGGUAN'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <AnimatePresence mode="wait">
-            {activeLB.length === 0 ? (
-              <motion.div initial={{opacity:0}} animate={{opacity:1}} className="text-center py-12">
-                <Medal size={48} className="text-slate-200 dark:text-slate-800 mx-auto mb-4" />
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Belum Ada Data Scan</p>
-              </motion.div>
-            ) : (
-              activeLB.map((officer, i) => (
-                <motion.div initial={{x:-20, opacity:0}} animate={{x:0, opacity:1}} transition={{delay: i*0.1}} key={officer.name} className="flex items-center justify-between p-5 bg-slate-50/50 dark:bg-slate-800/40 rounded-[1.8rem] border border-transparent hover:border-emerald-500/20 transition-all group">
-                  <div className="flex items-center gap-5">
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-[12px] shadow-sm ${ i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : 'bg-white dark:bg-slate-700 text-slate-500' }`}>#{i+1}</div>
-                    <div>
-                      <p className="font-black text-slate-800 dark:text-white text-xs uppercase tracking-tight mb-0.5">{officer.name}</p>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Active Officer</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-black text-emerald-600 dark:text-emerald-400 text-lg leading-none">{officer.scanCount}</p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Scans</p>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Recent History */}
+      {/* Leaderboard & Recent */}
       <div className="glass-card rounded-[3rem] p-8 shadow-2xl border border-white/10">
         <h3 className="font-black text-slate-900 dark:text-white text-xs uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
           <Clock size={20} className="text-emerald-500" /> Histori Terbaru
@@ -130,16 +101,17 @@ const DashboardTab: React.FC<{ changeTab: (tab: Tab) => void; userName: string }
               <div className="flex items-center gap-5">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg ${record.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>{record.nama.charAt(0)}</div>
                 <div className="overflow-hidden">
-                  <h4 className="font-black text-slate-800 dark:text-white text-[12px] uppercase truncate max-w-[120px] mb-0.5">{record.nama}</h4>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{record.kelas} • {record.jam}</p>
+                  <h4 className="font-black text-slate-800 dark:text-white text-[11px] uppercase truncate max-w-[120px] mb-0.5">{record.nama}</h4>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{record.jam}</p>
                 </div>
               </div>
-              <div className={`text-[9px] font-black px-4 py-2 rounded-2xl shadow-sm ${
-                record.status === 'HADIR' ? 'bg-emerald-600 text-white' : 
-                record.status === 'ALPHA' ? 'bg-red-600 text-white' : 
-                record.status === 'SAKIT' ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white'
+              <div className={`text-[8px] font-black px-3 py-1.5 rounded-xl shadow-sm ${
+                record.status.startsWith('SCAN_HADIR') ? 'bg-emerald-600 text-white' : 
+                record.status.startsWith('SCAN_ALPHA') ? 'bg-red-600 text-white' : 
+                record.status === 'HADIR' ? 'bg-teal-600 text-white' :
+                'bg-slate-500 text-white'
               }`}>
-                {record.status}
+                {getStatusLabel(record.status)}
               </div>
             </div>
           ))}
@@ -160,7 +132,7 @@ const StatCard = ({ label, value, icon, color }: any) => {
   return (
     <motion.div whileHover={{ y: -5 }} className="glass-card rounded-[2.5rem] p-6 shadow-xl border border-white/10 hover:border-emerald-500/30 transition-all">
       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 shadow-sm ${themes[color]}`}>{icon}</div>
-      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{label}</p>
+      <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 leading-tight">{label}</p>
       <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">{value}</p>
     </motion.div>
   );

@@ -42,20 +42,18 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
   };
 
   const onScanSuccess = async (text: string) => {
-    // Hindari trigger ganda jika sedang memproses
     if (status !== 'idle') return;
     
     try {
+      setMsg("");
       const data: StudentData = JSON.parse(text);
       if (!data.nama || !data.kelas) throw new Error("Invalid Format");
 
-      // Berhenti sejenak untuk memproses
       setStatus('checking');
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.pause(true);
       }
 
-      // Cek apakah sudah absen hari ini
       const existing = await checkIfAlreadyScanned(data.nama, data.kelas);
       
       if (existing) {
@@ -66,12 +64,10 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
       
       setStatus('confirming');
     } catch (e) {
-      console.error("Scan Error:", e);
       setMsg("QR Code tidak valid!");
       setTimeout(() => setMsg(""), 2000);
       setStatus('idle');
-      // Lanjutkan scanner jika error parsing
-      if (scannerRef.current?.getState() === 3) { // 3 is PAUSED state
+      if (scannerRef.current?.getState() === 3) {
          scannerRef.current.resume();
       }
     }
@@ -80,6 +76,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
   const handleAttendance = async (pilihan: AttendanceStatus) => {
     const target = student || duplicate;
     if (!target) return;
+    const studentName = target.nama;
 
     try {
       setStatus('checking');
@@ -97,9 +94,9 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
       await saveAttendance(record, duplicate?.id);
       
-      setMsg(duplicate ? "DATA DIPERBARUI!" : "BERHASIL DICATAT!");
+      const label = pilihan === 'SCAN_HADIR' ? 'SHOLAT' : pilihan === 'SCAN_ALPHA' ? 'TIDAK SHOLAT' : 'HALANGAN';
+      setMsg(`${studentName} ${label} BERHASIL DICATAT!`);
       
-      // Reset state & Resume scanner
       setStudent(null);
       setDuplicate(null);
       setStatus('idle');
@@ -108,7 +105,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
         scannerRef.current.resume();
       }
 
-      setTimeout(() => setMsg(""), 1500);
+      setTimeout(() => setMsg(""), 2500);
     } catch (e) { 
       setMsg("Gagal menyimpan data."); 
       setStatus('confirming');
@@ -158,7 +155,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
         {status === 'confirming' && (
           <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[3.5rem] p-10 text-center shadow-2xl relative overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 w-full max-sm rounded-[3.5rem] p-10 text-center shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
               
               {duplicate && (
@@ -176,7 +173,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
               
               <div className="flex flex-col gap-3">
                 <button 
-                  onClick={() => handleAttendance('HADIR')} 
+                  onClick={() => handleAttendance('SCAN_HADIR')} 
                   className="w-full py-5 bg-emerald-600 text-white rounded-[1.5rem] flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all"
                 >
                   <CheckCircle2 size={24} /> <span className="text-xs font-black uppercase tracking-widest">SHOLAT</span>
@@ -184,13 +181,13 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
                 
                 <div className="grid grid-cols-2 gap-3">
                   <button 
-                    onClick={() => handleAttendance('ALPHA')} 
+                    onClick={() => handleAttendance('SCAN_ALPHA')} 
                     className="py-5 bg-red-600 text-white rounded-[1.5rem] flex flex-col items-center gap-1 shadow-lg shadow-red-600/20 active:scale-95 transition-all"
                   >
                     <XCircle size={20} /> <span className="text-[9px] font-black uppercase tracking-widest">TIDAK SHOLAT</span>
                   </button>
                   <button 
-                    onClick={() => handleAttendance('IZIN')} 
+                    onClick={() => handleAttendance('SCAN_IZIN')} 
                     className="py-5 bg-blue-500 text-white rounded-[1.5rem] flex flex-col items-center gap-1 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
                   >
                     <Flower2 size={20} /> <span className="text-[9px] font-black uppercase tracking-widest">HALANGAN</span>
@@ -204,8 +201,8 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
         )}
 
         {msg && (
-          <motion.div initial={{y:-100, opacity:0}} animate={{y:0, opacity:1}} className="fixed top-28 px-10 py-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full text-[11px] font-black tracking-[0.2em] uppercase shadow-2xl flex items-center gap-3 z-[100]">
-            <Sparkles size={18} className="text-emerald-400" /> {msg}
+          <motion.div initial={{y:-100, opacity:0}} animate={{y:0, opacity:1}} className="fixed top-28 px-10 py-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full text-[11px] font-black tracking-[0.2em] uppercase shadow-2xl flex items-center gap-3 z-[100] text-center">
+            <Sparkles size={18} className="text-emerald-400 flex-shrink-0" /> <span className="truncate">{msg}</span>
           </motion.div>
         )}
       </AnimatePresence>

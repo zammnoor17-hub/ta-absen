@@ -50,7 +50,7 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
   // --- Logic Scan Admin ---
   const startAdminScanner = async () => {
     setIsScanning(true);
-    // Berikan jeda sedikit untuk render DOM element #admin-reader
+    setMsg(""); // Bersihkan pesan saat mulai scanner
     setTimeout(async () => {
       try {
         scannerRef.current = new Html5Qrcode("admin-reader", { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE] });
@@ -63,18 +63,19 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
               if (data.nama && data.kelas) {
                 const id = `${data.nama}-${data.kelas}`.replace(/[.#$/[\]]/g, "_");
                 await saveMasterStudent({ ...data, id });
-                setMsg(`Siswa ${data.nama} ditambahkan!`);
-                setTimeout(() => setMsg(''), 2000);
+                setMsg(`SISWA ${data.nama} BERHASIL DITAMBAHKAN!`);
+                setTimeout(() => setMsg(''), 2500);
               }
             } catch (e) {
-              setMsg("Format QR salah!");
+              setMsg("FORMAT QR TIDAK VALID!");
+              setTimeout(() => setMsg(''), 2000);
             }
           },
           () => {}
         );
       } catch (err) {
         setIsScanning(false);
-        setMsg("Gagal akses kamera.");
+        setMsg("GAGAL AKSES KAMERA.");
       }
     }, 150);
   };
@@ -94,8 +95,8 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
     const id = `${newStudent.nama}-${newStudent.kelas}`.replace(/[.#$/[\]]/g, "_");
     await saveMasterStudent({ ...newStudent, id });
     setNewStudent({ nama: '', kelas: '', gender: 'L' });
-    setMsg("Siswa ditambahkan secara manual!");
-    setTimeout(() => setMsg(''), 2000);
+    setMsg(`SISWA ${newStudent.nama} DITAMBAHKAN MANUAL!`);
+    setTimeout(() => setMsg(''), 2500);
   };
 
   // --- Attendance Status Toggle ---
@@ -112,6 +113,8 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
       officerKelas: 'ADMIN'
     };
     await updateDailyStatus(student.id, record);
+    setMsg(`STATUS ${student.nama} DIPERBARUI!`);
+    setTimeout(() => setMsg(''), 1500);
   };
 
   const getStatusOfStudent = (studentId: string): AttendanceStatus => {
@@ -292,7 +295,7 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
                <form onSubmit={async (e) => {
                  e.preventDefault();
                  await updateAdminAccount(currentAdmin, { username: myAccount.username, password: myAccount.password, role: 'SUPER_ADMIN' });
-                 setMsg("Akun diperbarui!");
+                 setMsg("AKUN DIPERBARUI!");
                  setTimeout(() => setMsg(''), 2000);
                }} className="space-y-5">
                   <input type="text" placeholder="Username" value={myAccount.username} onChange={e => setMyAccount({...myAccount, username: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm outline-none" />
@@ -307,7 +310,7 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
       {/* Floating Status Message */}
       <AnimatePresence>
         {msg && (
-          <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} exit={{y:50, opacity:0}} className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-4 rounded-full font-black text-[10px] uppercase tracking-widest shadow-2xl z-[200] border border-white/10">
+          <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} exit={{y:50, opacity:0}} className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-4 rounded-full font-black text-[10px] uppercase tracking-widest shadow-2xl z-[200] border border-white/10 text-center min-w-[200px]">
             {msg}
           </motion.div>
         )}

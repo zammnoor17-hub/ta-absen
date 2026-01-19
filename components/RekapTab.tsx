@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { subscribeToAttendance, getLocalDateString } from '../services/firebase';
-import { AttendanceRecord } from '../types';
-import { Search, Calendar, FileSpreadsheet, Download, Loader2, ChevronRight } from 'lucide-react';
+import { AttendanceRecord, AttendanceStatus } from '../types';
+import { Search, Calendar, FileSpreadsheet, Download, Loader2, ChevronRight, Check, X, Info, HeartPulse } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion } from 'framer-motion';
 
@@ -26,16 +26,16 @@ const RekapTab: React.FC = () => {
     r.kelas.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getStatusLabel = (status: string) => {
+  const getStatusConfig = (status: AttendanceStatus) => {
     switch(status) {
-      case 'HADIR': return 'HADIR';
-      case 'ALPHA': return 'ALPHA';
-      case 'IZIN': return 'IZIN';
-      case 'SAKIT': return 'SAKIT';
-      case 'SHOLAT': return 'SHOLAT';
-      case 'TIDAK SHOLAT': return 'TIDAK SHOLAT';
-       case 'HALANGAN': return 'HALANGAN';
-      default: return status;
+      case 'SCAN_HADIR': return { label: 'SHOLAT', color: 'bg-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400' };
+      case 'SCAN_ALPHA': return { label: 'TIDAK SHOLAT', color: 'bg-red-500', bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-600 dark:text-red-400' };
+      case 'SCAN_IZIN': return { label: 'HALANGAN', color: 'bg-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' };
+      case 'HADIR': return { label: 'HADIR (M)', color: 'bg-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300' };
+      case 'ALPHA': return { label: 'ALPHA (M)', color: 'bg-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300' };
+      case 'IZIN': return { label: 'IZIN (M)', color: 'bg-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300' };
+      case 'SAKIT': return { label: 'SAKIT (M)', color: 'bg-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300' };
+      default: return { label: status, color: 'bg-slate-500', bg: 'bg-slate-50', text: 'text-slate-600' };
     }
   };
 
@@ -43,9 +43,10 @@ const RekapTab: React.FC = () => {
     const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({
       'Nama Siswa': r.nama,
       'Kelas': r.kelas,
-      'Status Ibadah': getStatusLabel(r.status),
+      'Status': getStatusConfig(r.status).label,
+      'Metode': r.status.startsWith('SCAN_') ? 'Scan QR' : 'Manual Admin',
       'Jam Absen': r.jam,
-      'Petugas Scan': r.scannedBy
+      'Petugas': r.scannedBy
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Rekap Absensi");
@@ -59,7 +60,7 @@ const RekapTab: React.FC = () => {
         <div className="flex gap-4">
           <div className="relative flex-1 group">
             <Calendar className="absolute left-5 top-4 w-4 h-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full pl-14 pr-5 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase appearance-none outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 text-slate-900 dark:text-white transition-all" />
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full pl-14 pr-5 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 text-slate-900 dark:text-white transition-all" />
           </div>
           <button onClick={exportExcel} className="p-5 bg-emerald-600 text-white rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-90 transition-transform hover:bg-emerald-700">
             <FileSpreadsheet size={22} />
@@ -85,25 +86,23 @@ const RekapTab: React.FC = () => {
             <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Tidak Ada Data Ditemukan</p>
           </div>
         ) : (
-          filtered.map((r, i) => (
-            <motion.div initial={{y:15, opacity:0}} animate={{y:0, opacity:1}} transition={{delay: i*0.03}} key={r.id} className="glass-card p-5 rounded-[2rem] flex items-center justify-between group border border-white/10 hover:bg-white dark:hover:bg-slate-800 transition-all">
-              <div className="flex items-center gap-5">
-                <div className={`w-12 h-12 rounded-[1.4rem] flex items-center justify-center text-white font-black text-xl shadow-lg transform group-hover:rotate-6 transition-transform ${r.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>{r.nama.charAt(0)}</div>
-                <div className="overflow-hidden">
-                  <h4 className="text-[12px] font-black uppercase text-slate-800 dark:text-white truncate max-w-[150px] mb-0.5">{r.nama}</h4>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{r.kelas} • <span className="text-emerald-600 dark:text-emerald-400 font-black">{r.jam}</span></p>
+          filtered.map((r, i) => {
+            const config = getStatusConfig(r.status);
+            return (
+              <motion.div initial={{y:15, opacity:0}} animate={{y:0, opacity:1}} transition={{delay: i*0.03}} key={r.id} className="glass-card p-5 rounded-[2rem] flex items-center justify-between group border border-white/10 hover:bg-white dark:hover:bg-slate-800 transition-all">
+                <div className="flex items-center gap-5">
+                  <div className={`w-12 h-12 rounded-[1.4rem] flex items-center justify-center text-white font-black text-xl shadow-lg transform group-hover:rotate-6 transition-transform ${r.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>{r.nama.charAt(0)}</div>
+                  <div className="overflow-hidden">
+                    <h4 className="text-[12px] font-black uppercase text-slate-800 dark:text-white truncate max-w-[140px] mb-0.5">{r.nama}</h4>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{r.kelas} • <span className="text-emerald-600 dark:text-emerald-400 font-black">{r.jam}</span></p>
+                  </div>
                 </div>
-              </div>
-              <div className={`text-[9px] font-black px-4 py-2 rounded-2xl border-2 ${
-                r.status === 'HADIR' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100 dark:border-emerald-800/50' : 
-                r.status === 'ALPHA' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 border-red-100 dark:border-red-800/50' : 
-                r.status === 'SAKIT' ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100 dark:border-amber-900/50' :
-                'bg-blue-50 dark:bg-blue-900/20 text-blue-600 border-blue-100 dark:border-blue-800/50'
-              }`}>
-                {getStatusLabel(r.status)}
-              </div>
-            </motion.div>
-          ))
+                <div className={`text-[8px] font-black px-3 py-2 rounded-xl border-2 shadow-sm ${config.bg} ${config.text} border-current opacity-90`}>
+                  {config.label}
+                </div>
+              </motion.div>
+            );
+          })
         )}
       </div>
     </div>
