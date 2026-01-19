@@ -15,7 +15,9 @@ export interface OfficerStat {
   scanCount: number;
 }
 
-export type AttendanceStatus = 'HADIR' | 'ALPHA' | 'SAKIT' | 'IZIN';
+export type AttendanceStatus = 
+  | 'HADIR' | 'ALPHA' | 'SAKIT' | 'IZIN' // Status Manual Admin
+  | 'SCAN_HADIR' | 'SCAN_ALPHA' | 'SCAN_IZIN'; // Status Scan Petugas
 
 export interface AttendanceRecord extends StudentData {
   id?: string;
