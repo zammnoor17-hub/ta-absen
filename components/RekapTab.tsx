@@ -1,140 +1,97 @@
+
 import React, { useState, useEffect } from 'react';
 import { subscribeToAttendance, getLocalDateString } from '../services/firebase';
 import { AttendanceRecord } from '../types';
+import { Search, Calendar, FileSpreadsheet, Download, Loader2, ChevronRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { FileSpreadsheet, Search, Calendar } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const RekapTab: React.FC = () => {
   const [date, setDate] = useState(getLocalDateString());
   const [data, setData] = useState<AttendanceRecord[]>([]);
-  const [filteredData, setFilteredData] = useState<AttendanceRecord[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    const unsubscribe = subscribeToAttendance(date, (records) => {
-      // Sort records alphabetically by student name (nama)
-      const alphabeticalRecords = [...records].sort((a, b) => 
-        a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' })
-      );
-      setData(alphabeticalRecords);
-      setFilteredData(alphabeticalRecords);
+    const unsub = subscribeToAttendance(date, (records) => {
+      setData(records);
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, [date]);
 
-  useEffect(() => {
-    const lowerSearch = search.toLowerCase();
-    const filtered = data.filter(item => 
-      item.nama.toLowerCase().includes(lowerSearch) || 
-      item.kelas.toLowerCase().includes(lowerSearch) ||
-      (item.scannedBy && item.scannedBy.toLowerCase().includes(lowerSearch))
-    );
-    // Data is already sorted alphabetically, so filtered results will be too
-    setFilteredData(filtered);
-  }, [search, data]);
+  const filtered = data.filter(r => 
+    r.nama.toLowerCase().includes(search.toLowerCase()) || 
+    r.kelas.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredData.map(item => ({
-      Jam: item.jam,
-      Nama: item.nama,
-      Kelas: item.kelas,
-      Gender: item.gender,
-      Status: item.status === 'HADIR' ? 'SHOLAT' : item.status === 'TIDAK_SHOLAT' ? 'TIDAK SHOLAT' : 'HALANGAN',
-      Petugas: item.scannedBy || '-',
-      Tanggal: date
+  const exportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({
+      'Nama Siswa': r.nama,
+      'Kelas': r.kelas,
+      'Status Absen': r.status,
+      'Jam Absen': r.jam,
+      'Petugas Scan': r.scannedBy
     })));
-    
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Absensi");
-    XLSX.writeFile(workbook, `Absensi_X-Pray_${date}.xlsx`);
-  };
-
-  const getStatusLabel = (status: string) => {
-    if (status === 'HADIR') return 'SHOLAT';
-    if (status === 'TIDAK_SHOLAT') return 'TIDAK SHOLAT';
-    return 'HALANGAN';
-  };
-
-  const getStatusStyles = (status: string) => {
-    if (status === 'HADIR') {
-      return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900';
-    }
-    if (status === 'TIDAK_SHOLAT') {
-      return 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900';
-    }
-    return 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900';
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Rekap Absensi");
+    XLSX.writeFile(wb, `Rekap_XPray_${date}.xlsx`);
   };
 
   return (
-    <div className="space-y-4 pb-24">
-      {/* Controls Header Compact */}
-      <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-4 rounded-3xl shadow-md border border-white dark:border-white/5 flex flex-col gap-3 transition-colors duration-300">
-        <div className="flex gap-2">
-             <div className="relative flex-1">
-                <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
-                <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl outline-none text-[11px] font-bold dark:text-white transition-colors"
-                />
-             </div>
-             <button 
-                onClick={handleExport}
-                disabled={filteredData.length === 0}
-                className="px-4 py-2 bg-emerald-600 dark:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition shadow-md"
-             >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span className="text-[10px] hidden md:inline">Export</span>
-             </button>
+    <div className="space-y-6 pb-32 px-2 max-w-lg mx-auto">
+      {/* Controls Card */}
+      <div className="glass-card p-8 rounded-[3rem] shadow-2xl space-y-5 border border-white/20">
+        <div className="flex gap-4">
+          <div className="relative flex-1 group">
+            <Calendar className="absolute left-5 top-4 w-4 h-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full pl-14 pr-5 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase appearance-none outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 text-slate-900 dark:text-white transition-all" />
+          </div>
+          <button onClick={exportExcel} className="p-5 bg-emerald-600 text-white rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-90 transition-transform hover:bg-emerald-700">
+            <FileSpreadsheet size={22} />
+          </button>
         </div>
         
-        <div className="relative">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
-            <input 
-              type="text" 
-              placeholder="Cari nama siswa..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl outline-none text-[11px] font-bold dark:text-white transition-colors"
-            />
+        <div className="relative group">
+          <Search className="absolute left-5 top-4 w-4 h-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+          <input type="text" placeholder="Cari nama atau kelas..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-14 pr-5 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 text-slate-900 dark:text-white transition-all" />
         </div>
       </div>
 
-      {/* Data Display Compact */}
-      <div className="space-y-2">
-          {loading ? (
-             <div className="text-center py-10 text-[10px] font-bold text-slate-400 uppercase animate-pulse">Memuat...</div>
-          ) : filteredData.length === 0 ? (
-             <div className="text-center py-10 text-slate-300 dark:text-slate-700 text-[10px] font-black uppercase">Kosong</div>
-          ) : (
-             filteredData.map(item => (
-                <div key={item.id} className="bg-white dark:bg-slate-900 p-3 rounded-2xl shadow-sm border border-slate-50 dark:border-white/5 flex items-center justify-between transition-colors duration-300">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-xs ${item.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>
-                            {item.nama.charAt(0)}
-                        </div>
-                        <div>
-                            <h4 className="font-black text-slate-800 dark:text-white text-[11px] leading-tight">{item.nama}</h4>
-                            <div className="flex items-center gap-2 text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase mt-0.5">
-                                <span>{item.kelas}</span>
-                                <span className="text-slate-200 dark:text-slate-800">•</span>
-                                <span className="font-mono">{item.jam}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                        <span className={`text-[8px] font-black px-2 py-1 rounded-lg border ${getStatusStyles(item.status)}`}>
-                            {getStatusLabel(item.status)}
-                        </span>
-                        <span className="text-[7px] text-slate-300 dark:text-slate-600 font-black uppercase">Oleh: {item.scannedBy || '-'}</span>
-                    </div>
+      {/* List Card */}
+      <div className="space-y-4">
+        {loading ? (
+          <div className="text-center py-24 glass-card rounded-[3rem]">
+            <Loader2 size={40} className="animate-spin text-emerald-500 mx-auto mb-4" />
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">Mengambil Data...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-24 glass-card rounded-[3rem] border border-white/10">
+            <Search size={48} className="text-slate-200 dark:text-slate-800 mx-auto mb-4" />
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Tidak Ada Data Ditemukan</p>
+          </div>
+        ) : (
+          filtered.map((r, i) => (
+            <motion.div initial={{y:15, opacity:0}} animate={{y:0, opacity:1}} transition={{delay: i*0.03}} key={r.id} className="glass-card p-5 rounded-[2rem] flex items-center justify-between group border border-white/10 hover:bg-white dark:hover:bg-slate-800 transition-all">
+              <div className="flex items-center gap-5">
+                <div className={`w-12 h-12 rounded-[1.4rem] flex items-center justify-center text-white font-black text-xl shadow-lg transform group-hover:rotate-6 transition-transform ${r.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>{r.nama.charAt(0)}</div>
+                <div className="overflow-hidden">
+                  <h4 className="text-[12px] font-black uppercase text-slate-800 dark:text-white truncate max-w-[150px] mb-0.5">{r.nama}</h4>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{r.kelas} • <span className="text-emerald-600 dark:text-emerald-400 font-black">{r.jam}</span></p>
                 </div>
-             ))
-          )}
+              </div>
+              <div className={`text-[9px] font-black px-4 py-2 rounded-2xl border-2 ${
+                r.status === 'HADIR' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100 dark:border-emerald-800/50' : 
+                r.status === 'ALPHA' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 border-red-100 dark:border-red-800/50' : 
+                r.status === 'SAKIT' ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100 dark:border-amber-900/50' :
+                'bg-blue-50 dark:bg-blue-900/20 text-blue-600 border-blue-100 dark:border-blue-800/50'
+              }`}>
+                {r.status}
+              </div>
+            </motion.div>
+          ))
+        )}
       </div>
     </div>
   );
