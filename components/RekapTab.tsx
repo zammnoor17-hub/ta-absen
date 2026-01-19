@@ -30,7 +30,7 @@ const RekapTab: React.FC = () => {
     switch(status) {
       case 'HADIR': return 'SHOLAT';
       case 'ALPHA': return 'TIDAK SHOLAT';
-      case 'IZIN': return 'HALANGAN';
+      case 'IZIN': return 'IZIN';
       case 'SAKIT': return 'SAKIT';
       default: return status;
     }
