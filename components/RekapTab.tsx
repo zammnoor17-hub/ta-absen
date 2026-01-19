@@ -26,11 +26,21 @@ const RekapTab: React.FC = () => {
     r.kelas.toLowerCase().includes(search.toLowerCase())
   );
 
+  const getStatusLabel = (status: string) => {
+    switch(status) {
+      case 'HADIR': return 'SHOLAT';
+      case 'ALPHA': return 'TIDAK SHOLAT';
+      case 'IZIN': return 'HALANGAN';
+      case 'SAKIT': return 'SAKIT';
+      default: return status;
+    }
+  };
+
   const exportExcel = () => {
     const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({
       'Nama Siswa': r.nama,
       'Kelas': r.kelas,
-      'Status Absen': r.status,
+      'Status Ibadah': getStatusLabel(r.status),
       'Jam Absen': r.jam,
       'Petugas Scan': r.scannedBy
     })));
@@ -87,7 +97,7 @@ const RekapTab: React.FC = () => {
                 r.status === 'SAKIT' ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100 dark:border-amber-900/50' :
                 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 border-blue-100 dark:border-blue-800/50'
               }`}>
-                {r.status}
+                {getStatusLabel(r.status)}
               </div>
             </motion.div>
           ))

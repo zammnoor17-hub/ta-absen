@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { StudentData, AttendanceRecord, AttendanceStatus } from '../types';
 import { saveAttendance, checkIfAlreadyScanned } from '../services/firebase';
-import { Check, Camera, Sparkles, X, AlertTriangle, Loader2, UserCheck, HeartPulse, FileText, Ghost } from 'lucide-react';
+import { Check, Camera, Sparkles, X, AlertTriangle, Loader2, UserCheck, HeartPulse, FileText, Ghost, XCircle, CheckCircle2, Flower2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ currentUser, officerClass }) => {
@@ -77,7 +77,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
       await saveAttendance(record, duplicate?.id);
       
-      setMsg(duplicate ? "DATA DIPERBARUI!" : "ABSENSI BERHASIL!");
+      setMsg(duplicate ? "DATA DIPERBARUI!" : "BERHASIL DICATAT!");
       resetScanner();
       
       setTimeout(() => {
@@ -108,7 +108,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
            </div>
            <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Scanner Aktif</p>
-              <p className="text-sm font-black text-slate-800 dark:text-white uppercase">{officerClass || 'ADMIN'}</p>
+              <p className="text-sm font-black text-slate-800 dark:text-white uppercase">{officerClass || 'PETUGAS'}</p>
            </div>
         </div>
         <div className="px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full text-[10px] font-black animate-pulse">LIVE</div>
@@ -137,7 +137,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
               
               {duplicate && (
                 <div className="mb-6 py-2 px-4 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center gap-2 border border-amber-100 dark:border-amber-900/30">
-                  <AlertTriangle size={14} /> <span className="text-[10px] font-black uppercase tracking-tight">Sudah Absen Jam {duplicate.jam}</span>
+                  <AlertTriangle size={14} /> <span className="text-[10px] font-black uppercase tracking-tight">Terakhir dicatat jam {duplicate.jam}</span>
                 </div>
               )}
 
@@ -148,22 +148,31 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
               <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-tight mb-1">{(student?.nama || duplicate?.nama)}</h3>
               <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-8 uppercase tracking-widest">{(student?.kelas || duplicate?.kelas)}</p>
               
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <button onClick={() => handleAttendance('HADIR')} className="py-4 bg-emerald-600 text-white rounded-2xl flex flex-col items-center gap-1 shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">
-                  <UserCheck size={20} /> <span className="text-[9px] font-black uppercase tracking-widest">HADIR</span>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => handleAttendance('HADIR')} 
+                  className="w-full py-5 bg-emerald-600 text-white rounded-[1.5rem] flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all"
+                >
+                  <CheckCircle2 size={24} /> <span className="text-xs font-black uppercase tracking-widest">SHOLAT</span>
                 </button>
-                <button onClick={() => handleAttendance('SAKIT')} className="py-4 bg-amber-500 text-white rounded-2xl flex flex-col items-center gap-1 shadow-lg shadow-amber-500/20 active:scale-95 transition-all">
-                  <HeartPulse size={20} /> <span className="text-[9px] font-black uppercase tracking-widest">SAKIT</span>
-                </button>
-                <button onClick={() => handleAttendance('IZIN')} className="py-4 bg-blue-500 text-white rounded-2xl flex flex-col items-center gap-1 shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
-                  <FileText size={20} /> <span className="text-[9px] font-black uppercase tracking-widest">IZIN</span>
-                </button>
-                <button onClick={() => handleAttendance('ALPHA')} className="py-4 bg-red-600 text-white rounded-2xl flex flex-col items-center gap-1 shadow-lg shadow-red-600/20 active:scale-95 transition-all">
-                  <Ghost size={20} /> <span className="text-[9px] font-black uppercase tracking-widest">ALPHA</span>
-                </button>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => handleAttendance('ALPHA')} 
+                    className="py-5 bg-red-600 text-white rounded-[1.5rem] flex flex-col items-center gap-1 shadow-lg shadow-red-600/20 active:scale-95 transition-all"
+                  >
+                    <XCircle size={20} /> <span className="text-[9px] font-black uppercase tracking-widest">TIDAK SHOLAT</span>
+                  </button>
+                  <button 
+                    onClick={() => handleAttendance('IZIN')} 
+                    className="py-5 bg-blue-500 text-white rounded-[1.5rem] flex flex-col items-center gap-1 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
+                  >
+                    <Flower2 size={20} /> <span className="text-[9px] font-black uppercase tracking-widest">HALANGAN</span>
+                  </button>
+                </div>
               </div>
               
-              <button onClick={cancel} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Batal</button>
+              <button onClick={cancel} className="mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Batal</button>
             </div>
           </motion.div>
         )}
