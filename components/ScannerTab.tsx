@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { StudentData, AttendanceRecord, AttendanceStatus } from '../types';
 import { saveAttendance, checkIfAlreadyScanned } from '../services/firebase';
-import { Check, Camera, Sparkles, X, AlertTriangle, Loader2, UserCheck, HeartPulse, FileText, Ghost, XCircle, CheckCircle2, Flower2 } from 'lucide-react';
+import { Check, Camera, Sparkles, X, AlertTriangle, Loader2, UserCheck, XCircle, CheckCircle2, Flower2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ currentUser, officerClass }) => {
@@ -14,47 +14,66 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
-    scannerRef.current = new Html5Qrcode("reader", { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE] });
+    const html5QrCode = new Html5Qrcode("reader", { 
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE] 
+    });
+    scannerRef.current = html5QrCode;
     startCamera();
-    return () => { scannerRef.current?.stop().catch(() => {}); };
+    
+    return () => {
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
   }, []);
 
   const startCamera = async () => {
     try {
-      await scannerRef.current?.start(
+      if (!scannerRef.current) return;
+      await scannerRef.current.start(
         { facingMode: "environment" },
-        { fps: 15, qrbox: 250, aspectRatio: 1.0 },
+        { fps: 20, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
         (text) => onScanSuccess(text),
         () => {}
       );
-    } catch (e) { setMsg("Gagal akses kamera."); }
+    } catch (e) { 
+      setMsg("Gagal akses kamera. Pastikan izin diberikan."); 
+    }
   };
 
   const onScanSuccess = async (text: string) => {
+    // Hindari trigger ganda jika sedang memproses
+    if (status !== 'idle') return;
+    
     try {
-      if (status !== 'idle') return;
-      
       const data: StudentData = JSON.parse(text);
-      if (!data.nama || !data.kelas) throw new Error();
+      if (!data.nama || !data.kelas) throw new Error("Invalid Format");
 
-      // Pause scanner immediately to avoid multiple scans
-      await scannerRef.current?.pause();
+      // Berhenti sejenak untuk memproses
       setStatus('checking');
+      if (scannerRef.current?.isScanning) {
+        await scannerRef.current.pause(true);
+      }
 
+      // Cek apakah sudah absen hari ini
       const existing = await checkIfAlreadyScanned(data.nama, data.kelas);
       
-      setTimeout(() => {
-        if (existing) {
-          setDuplicate(existing);
-        } else {
-          setStudent(data);
-        }
-        setStatus('confirming');
-      }, 600);
-
+      if (existing) {
+        setDuplicate(existing);
+      } else {
+        setStudent(data);
+      }
+      
+      setStatus('confirming');
     } catch (e) {
-      setMsg("Format QR tidak dikenali!");
+      console.error("Scan Error:", e);
+      setMsg("QR Code tidak valid!");
       setTimeout(() => setMsg(""), 2000);
+      setStatus('idle');
+      // Lanjutkan scanner jika error parsing
+      if (scannerRef.current?.getState() === 3) { // 3 is PAUSED state
+         scannerRef.current.resume();
+      }
     }
   };
 
@@ -63,6 +82,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
     if (!target) return;
 
     try {
+      setStatus('checking');
       const now = new Date();
       const record: Omit<AttendanceRecord, 'id'> = {
         nama: target.nama,
@@ -78,24 +98,30 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
       await saveAttendance(record, duplicate?.id);
       
       setMsg(duplicate ? "DATA DIPERBARUI!" : "BERHASIL DICATAT!");
-      resetScanner();
       
-      setTimeout(() => {
-        setMsg("");
-        scannerRef.current?.resume();
-      }, 1500);
-    } catch (e) { setMsg("Gagal menyimpan data."); }
-  };
+      // Reset state & Resume scanner
+      setStudent(null);
+      setDuplicate(null);
+      setStatus('idle');
+      
+      if (scannerRef.current?.getState() === 3) {
+        scannerRef.current.resume();
+      }
 
-  const resetScanner = () => {
-    setStudent(null);
-    setDuplicate(null);
-    setStatus('idle');
+      setTimeout(() => setMsg(""), 1500);
+    } catch (e) { 
+      setMsg("Gagal menyimpan data."); 
+      setStatus('confirming');
+    }
   };
 
   const cancel = () => {
-    resetScanner();
-    scannerRef.current?.resume();
+    setStudent(null);
+    setDuplicate(null);
+    setStatus('idle');
+    if (scannerRef.current?.getState() === 3) {
+      scannerRef.current.resume();
+    }
   };
 
   return (

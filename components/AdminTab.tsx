@@ -15,7 +15,11 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
-  const [stats, setStats] = useState({ totalScans: 0, officers: {} as Record<string, any[]> });
+  // Explicitly type the stats state to ensure TypeScript knows the structure
+  const [stats, setStats] = useState<{ totalScans: number; officers: Record<string, any[]> }>({ 
+    totalScans: 0, 
+    officers: {} 
+  });
   const [masterStudents, setMasterStudents] = useState<MasterStudent[]>([]);
   const [dailyAttendance, setDailyAttendance] = useState<AttendanceRecord[]>([]);
   const [subTab, setSubTab] = useState<'OVERVIEW' | 'ABSENSI' | 'STUDENTS' | 'CONFIG'>('OVERVIEW');
@@ -28,7 +32,8 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
-    const unsubStats = getAllStats(setStats);
+    // Cast the setter to handle any data from firebase
+    const unsubStats = getAllStats((data: any) => setStats(data));
     const unsubMaster = subscribeToMasterStudents(setMasterStudents);
     const unsubDaily = subscribeToAttendance(getLocalDateString(), setDailyAttendance);
     
@@ -36,26 +41,29 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
       unsubStats();
       unsubMaster();
       unsubDaily();
-      if (scannerRef.current) scannerRef.current.stop().catch(() => {});
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().catch(() => {});
+      }
     };
   }, []);
 
   // --- Logic Scan Admin ---
   const startAdminScanner = async () => {
     setIsScanning(true);
+    // Berikan jeda sedikit untuk render DOM element #admin-reader
     setTimeout(async () => {
       try {
         scannerRef.current = new Html5Qrcode("admin-reader", { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE] });
         await scannerRef.current.start(
           { facingMode: "environment" },
-          { fps: 15, qrbox: 250 },
+          { fps: 15, qrbox: { width: 250, height: 250 } },
           async (text) => {
             try {
               const data = JSON.parse(text);
               if (data.nama && data.kelas) {
                 const id = `${data.nama}-${data.kelas}`.replace(/[.#$/[\]]/g, "_");
                 await saveMasterStudent({ ...data, id });
-                setMsg(`Siswa ${data.nama} berhasil ditambahkan!`);
+                setMsg(`Siswa ${data.nama} ditambahkan!`);
                 setTimeout(() => setMsg(''), 2000);
               }
             } catch (e) {
@@ -68,11 +76,15 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
         setIsScanning(false);
         setMsg("Gagal akses kamera.");
       }
-    }, 100);
+    }, 150);
   };
 
   const stopAdminScanner = () => {
-    scannerRef.current?.stop().then(() => setIsScanning(false)).catch(() => setIsScanning(false));
+    if (scannerRef.current?.isScanning) {
+      scannerRef.current.stop().then(() => setIsScanning(false)).catch(() => setIsScanning(false));
+    } else {
+      setIsScanning(false);
+    }
   };
 
   // --- Manual Add ---
@@ -140,10 +152,10 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
                  <GraduationCap size={18} className="text-emerald-500" /> Kinerja Petugas
               </h3>
               <div className="space-y-3">
-                {Object.entries(stats.officers).map(([kelas, officers]) => (
+                {Object.entries(stats.officers || {}).map(([kelas, officers]) => (
                   <div key={kelas} className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-white/5">
                     <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 mb-3 uppercase tracking-widest">KELAS {kelas}</p>
-                    {officers.map((o: any) => (
+                    {(officers as any[]).map((o: any) => (
                       <div key={o.name} className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5 last:border-0">
                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{o.name}</span>
                         <span className="text-xs font-black text-slate-900 dark:text-white">{o.scanCount} Scans</span>
