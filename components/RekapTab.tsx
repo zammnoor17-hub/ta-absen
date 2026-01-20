@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { subscribeToAttendance, getLocalDateString } from '../services/firebase';
 import { AttendanceRecord, AttendanceStatus } from '../types';
-import { Search, Calendar, FileSpreadsheet, Download, Loader2, ChevronRight, Check, X, Info, HeartPulse } from 'lucide-react';
+import { Search, Calendar, FileSpreadsheet, Loader2, Sparkles } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion } from 'framer-motion';
 
@@ -15,7 +15,10 @@ const RekapTab: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     const unsub = subscribeToAttendance(date, (records) => {
-      setData(records);
+      // FIX: Karena subscribeToAttendance sekarang kronologis (urutan waktu),
+      // RekapTab harus mengurutkan alfabetis A-Z di sini agar tetap rapi.
+      const sorted = [...records].sort((a, b) => a.nama.localeCompare(b.nama));
+      setData(sorted);
       setLoading(false);
     });
     return () => unsub();
@@ -31,10 +34,10 @@ const RekapTab: React.FC = () => {
       case 'SCAN_HADIR': return { label: 'SHOLAT', color: 'bg-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400' };
       case 'SCAN_ALPHA': return { label: 'TIDAK SHOLAT', color: 'bg-red-500', bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-600 dark:text-red-400' };
       case 'SCAN_IZIN': return { label: 'HALANGAN', color: 'bg-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' };
-      case 'HADIR': return { label: 'HADIR.', color: 'bg-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300' };
-      case 'ALPHA': return { label: 'ALPHA.', color: 'bg-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300' };
-      case 'IZIN': return { label: 'IZIN.', color: 'bg-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300' };
-      case 'SAKIT': return { label: 'SAKIT.', color: 'bg-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300' };
+      case 'HADIR': return { label: 'HADIR (M)', color: 'bg-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300' };
+      case 'ALPHA': return { label: 'ALPHA (M)', color: 'bg-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300' };
+      case 'IZIN': return { label: 'IZIN (M)', color: 'bg-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300' };
+      case 'SAKIT': return { label: 'SAKIT (M)', color: 'bg-amber-600', bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-700 dark:text-amber-300' };
       default: return { label: status, color: 'bg-slate-500', bg: 'bg-slate-50', text: 'text-slate-600' };
     }
   };
@@ -89,7 +92,7 @@ const RekapTab: React.FC = () => {
           filtered.map((r, i) => {
             const config = getStatusConfig(r.status);
             return (
-              <motion.div initial={{y:15, opacity:0}} animate={{y:0, opacity:1}} transition={{delay: i*0.03}} key={r.id} className="glass-card p-5 rounded-[2rem] flex items-center justify-between group border border-white/10 hover:bg-white dark:hover:bg-slate-800 transition-all">
+              <motion.div initial={{y:15, opacity:0}} animate={{y:0, opacity:1}} transition={{delay: i * 0.02}} key={r.id} className="glass-card p-5 rounded-[2rem] flex items-center justify-between group border border-white/10 hover:bg-white dark:hover:bg-slate-800 transition-all">
                 <div className="flex items-center gap-5">
                   <div className={`w-12 h-12 rounded-[1.4rem] flex items-center justify-center text-white font-black text-xl shadow-lg transform group-hover:rotate-6 transition-transform ${r.gender === 'L' ? 'bg-blue-600' : 'bg-pink-600'}`}>{r.nama.charAt(0)}</div>
                   <div className="overflow-hidden">

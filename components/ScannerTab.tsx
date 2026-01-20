@@ -3,13 +3,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { StudentData, AttendanceRecord, AttendanceStatus } from '../types';
 import { saveAttendance, checkIfAlreadyScanned } from '../services/firebase';
-import { Camera, AlertTriangle, Loader2, XCircle, CheckCircle2, Flower2 } from 'lucide-react';
+import { Camera, AlertTriangle, Loader2, XCircle, CheckCircle2, Flower2, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ currentUser, officerClass }) => {
   const [student, setStudent] = useState<StudentData | null>(null);
   const [duplicate, setDuplicate] = useState<AttendanceRecord | null>(null);
   const [status, setStatus] = useState<'idle' | 'checking' | 'confirming'>('idle');
+  const [msg, setMsg] = useState(''); // Fitur notifikasi dikembalikan
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -36,7 +37,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
         () => {}
       );
     } catch (e) { 
-      console.error("Camera access failed");
+      setMsg("Gagal akses kamera.");
     }
   };
 
@@ -44,6 +45,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
     if (status !== 'idle') return;
     
     try {
+      setMsg(""); // Bersihkan notifikasi lama saat scan baru
       const data: StudentData = JSON.parse(text);
       if (!data.nama || !data.kelas) throw new Error("Invalid Format");
 
@@ -62,6 +64,8 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
       
       setStatus('confirming');
     } catch (e) {
+      setMsg("QR Code Tidak Valid");
+      setTimeout(() => setMsg(""), 2000);
       setStatus('idle');
       if (scannerRef.current?.getState() === 3) {
          scannerRef.current.resume();
@@ -72,6 +76,10 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
   const handleAttendance = async (pilihan: AttendanceStatus) => {
     const target = student || duplicate;
     if (!target) return;
+
+    // FIX: Tangkap nama siswa yang SEDANG diproses di variabel lokal
+    // untuk menjamin notifikasi menampilkan nama yang benar meskipun state di-reset
+    const scannedName = target.nama;
 
     try {
       setStatus('checking');
@@ -89,6 +97,10 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
       await saveAttendance(record, duplicate?.id);
       
+      // Notifikasi menggunakan variabel lokal scannedName
+      const actionLabel = pilihan === 'SCAN_HADIR' ? 'SHOLAT' : pilihan === 'SCAN_ALPHA' ? 'TIDAK SHOLAT' : 'HALANGAN';
+      setMsg(`${scannedName} BERHASIL ${actionLabel}!`);
+      
       setStudent(null);
       setDuplicate(null);
       setStatus('idle');
@@ -96,7 +108,11 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
       if (scannerRef.current?.getState() === 3) {
         scannerRef.current.resume();
       }
+      
+      // Bersihkan notifikasi setelah 2.5 detik
+      setTimeout(() => setMsg(""), 2500);
     } catch (e) { 
+      setMsg("Gagal menyimpan data.");
       setStatus('confirming');
     }
   };
@@ -186,6 +202,12 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
               
               <button onClick={cancel} className="mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Batal</button>
             </div>
+          </motion.div>
+        )}
+
+        {msg && (
+          <motion.div initial={{y:-100, opacity:0}} animate={{y:0, opacity:1}} exit={{y:-100, opacity:0}} className="fixed top-28 px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full text-[10px] font-black tracking-[0.2em] uppercase shadow-2xl flex items-center gap-3 z-[100] text-center border border-white/10">
+            <Sparkles size={16} className="text-emerald-400 flex-shrink-0" /> <span className="truncate">{msg}</span>
           </motion.div>
         )}
       </AnimatePresence>
