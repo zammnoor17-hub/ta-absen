@@ -77,9 +77,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
     const target = student || duplicate;
     if (!target) return;
 
-    // FIX BUG: Kunci nama siswa ke variabel lokal agar tidak tertukar saat state di-reset
-    const exactScannedName = target.nama;
-
     try {
       setStatus('checking');
       const now = new Date();
@@ -96,9 +93,8 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
       await saveAttendance(record, duplicate?.id);
       
-      // Gunakan exactScannedName untuk notifikasi yang akurat
-      const actionLabel = pilihan === 'SCAN_HADIR' ? 'SHOLAT' : pilihan === 'SCAN_ALPHA' ? 'TIDAK SHOLAT' : 'HALANGAN';
-      setMsg(`${exactScannedName} BERHASIL ${actionLabel}!`);
+      // Mengubah notifikasi menjadi pesan statis tanpa nama siswa
+      setMsg("ABSEN TERDETEKSI!");
       
       setStudent(null);
       setDuplicate(null);
