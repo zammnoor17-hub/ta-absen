@@ -1,16 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  getAllStats, updateAdminAccount, db, deleteOfficerRecords, 
+  getAllStats, updateAdminAccount, db, 
   subscribeToMasterStudents, saveMasterStudent, deleteMasterStudent,
-  subscribeToAttendance, getLocalDateString, updateDailyStatus 
+  subscribeToAttendance, getLocalDateString, updateDailyStatus,
+  subscribeToAdmins, deleteAdminAccount 
 } from '../services/firebase';
 import { 
   Users, Key, TrendingUp, GraduationCap, 
   Trash2, Search, ClipboardList, PlusCircle, 
-  Camera, Info, Save, AlertCircle
+  Camera, Info, Save, AlertCircle, UserPlus, ShieldAlert
 } from 'lucide-react';
-import { MasterStudent, AttendanceStatus, AttendanceRecord } from '../types';
+import { MasterStudent, AttendanceStatus, AttendanceRecord, AdminAccount } from '../types';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,10 +22,12 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
   });
   const [masterStudents, setMasterStudents] = useState<MasterStudent[]>([]);
   const [dailyAttendance, setDailyAttendance] = useState<AttendanceRecord[]>([]);
+  const [admins, setAdmins] = useState<AdminAccount[]>([]);
   const [subTab, setSubTab] = useState<'OVERVIEW' | 'ABSENSI' | 'STUDENTS' | 'CONFIG'>('OVERVIEW');
   
   const [newStudent, setNewStudent] = useState({ nama: '', kelas: '', gender: 'L' as 'L' | 'P' });
   const [myAccount, setMyAccount] = useState({ username: currentAdmin, password: '' });
+  const [newAdmin, setNewAdmin] = useState({ username: '', password: '' });
   const [search, setSearch] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -33,11 +36,13 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
     const unsubStats = getAllStats((data: any) => setStats(data));
     const unsubMaster = subscribeToMasterStudents(setMasterStudents);
     const unsubDaily = subscribeToAttendance(getLocalDateString(), setDailyAttendance);
+    const unsubAdmins = subscribeToAdmins(setAdmins);
     
     return () => {
       unsubStats();
       unsubMaster();
       unsubDaily();
+      unsubAdmins();
       if (scannerRef.current?.isScanning) {
         scannerRef.current.stop().catch(() => {});
       }
@@ -48,7 +53,11 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
     setIsScanning(true);
     setTimeout(async () => {
       try {
-        scannerRef.current = new Html5Qrcode("admin-reader", { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE] });
+        // Added verbose: false to satisfy Html5QrcodeFullConfig requirements
+        scannerRef.current = new Html5Qrcode("admin-reader", { 
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          verbose: false 
+        });
         await scannerRef.current.start(
           { facingMode: "environment" },
           { fps: 15, qrbox: { width: 250, height: 250 } },
@@ -87,6 +96,14 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
     setNewStudent({ nama: '', kelas: '', gender: 'L' });
   };
 
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAdmin.username || !newAdmin.password) return;
+    await updateAdminAccount(newAdmin.username, { ...newAdmin, role: 'SUPER_ADMIN' });
+    setNewAdmin({ username: '', password: '' });
+    alert("Admin Baru Berhasil Ditambahkan!");
+  };
+
   const toggleStatus = async (student: MasterStudent, newStatus: AttendanceStatus) => {
     const now = new Date();
     const record: AttendanceRecord = {
@@ -99,7 +116,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
       scannedBy: `ADMIN_${currentAdmin}`,
       officerKelas: 'ADMIN'
     };
-    // Update status dilakukan secara langsung ke Firebase tanpa memicu notifikasi visual (Silent Update)
     await updateDailyStatus(student.id, record);
   };
 
@@ -124,15 +140,14 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
         <AdminNavBtn active={subTab === 'OVERVIEW'} onClick={() => setSubTab('OVERVIEW')} label="Stats" icon={<TrendingUp size={14}/>} />
         <AdminNavBtn active={subTab === 'ABSENSI'} onClick={() => setSubTab('ABSENSI')} label="Daftar Absen" icon={<ClipboardList size={14}/>} />
         <AdminNavBtn active={subTab === 'STUDENTS'} onClick={() => setSubTab('STUDENTS')} label="Data Siswa" icon={<PlusCircle size={14}/>} />
-        <AdminNavBtn active={subTab === 'CONFIG'} onClick={() => setSubTab('CONFIG')} label="Akun" icon={<Key size={14}/>} />
+        <AdminNavBtn active={subTab === 'CONFIG'} onClick={() => setSubTab('CONFIG')} label="Pengaturan" icon={<Key size={14}/>} />
       </div>
 
       <AnimatePresence mode="wait">
         {subTab === 'OVERVIEW' && (
           <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard label="Total Scan" value={stats.totalScans} icon={<TrendingUp size={24}/>} color="emerald" />
-              <StatCard label="Master Siswa" value={masterStudents.length} icon={<Users size={24}/>} color="blue" />
+            <div className="grid grid-cols-1 gap-4">
+              <StatCard label="Total Master Siswa" value={masterStudents.length} icon={<Users size={24}/>} color="blue" />
             </div>
 
             <div className="glass-card p-8 rounded-[2.5rem] border border-white/10">
@@ -151,6 +166,9 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
                     ))}
                   </div>
                 ))}
+                {Object.keys(stats.officers || {}).length === 0 && (
+                  <p className="text-center py-4 text-[10px] font-black text-slate-400 uppercase">Belum ada aktivitas petugas</p>
+                )}
               </div>
             </div>
           </motion.div>
@@ -269,19 +287,54 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
         )}
 
         {subTab === 'CONFIG' && (
-          <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} className="space-y-6">
+          <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} className="space-y-8">
             <div className="glass-card p-8 rounded-[3rem] border border-white/10">
                <h3 className="text-sm font-black text-slate-900 dark:text-white mb-8 flex items-center gap-2">
-                  <Key size={18} className="text-amber-500" /> Pengaturan Akun Admin
+                  <Key size={18} className="text-amber-500" /> Pengaturan Akun Admin Saya
                </h3>
                <form onSubmit={async (e) => {
                  e.preventDefault();
                  await updateAdminAccount(currentAdmin, { username: myAccount.username, password: myAccount.password, role: 'SUPER_ADMIN' });
+                 alert("Profil Anda Berhasil Diperbarui!");
                }} className="space-y-5">
                   <input type="text" placeholder="Username" value={myAccount.username} onChange={e => setMyAccount({...myAccount, username: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm outline-none" />
                   <input type="password" placeholder="Password Baru" value={myAccount.password} onChange={e => setMyAccount({...myAccount, password: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm outline-none" />
-                  <button className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">Update Profil Saya</button>
+                  <button className="w-full py-5 bg-slate-900 dark:bg-emerald-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">Update Profil Saya</button>
                </form>
+            </div>
+
+            <div className="glass-card p-8 rounded-[3rem] border border-white/10">
+               <h3 className="text-sm font-black text-slate-900 dark:text-white mb-8 flex items-center gap-2">
+                  <UserPlus size={18} className="text-blue-500" /> Tambah Admin Baru
+               </h3>
+               <form onSubmit={handleAddAdmin} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" placeholder="Username Baru" required value={newAdmin.username} onChange={e => setNewAdmin({...newAdmin, username: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm outline-none" />
+                    <input type="password" placeholder="Password Baru" required value={newAdmin.password} onChange={e => setNewAdmin({...newAdmin, password: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-sm outline-none" />
+                  </div>
+                  <button className="w-full py-5 bg-blue-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all">Daftarkan Admin Baru</button>
+               </form>
+
+               <div className="mt-10 pt-10 border-t border-slate-100 dark:border-white/5">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                    <ShieldAlert size={14} /> Daftar Seluruh Admin
+                  </h4>
+                  <div className="space-y-3">
+                    {admins.map(adm => (
+                      <div key={adm.username} className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-transparent">
+                        <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg flex items-center justify-center font-black text-slate-500">{adm.username.charAt(0).toUpperCase()}</div>
+                           <p className="text-xs font-black text-slate-800 dark:text-white uppercase">{adm.username} {adm.username === currentAdmin && <span className="text-[8px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full ml-2">SAYA</span>}</p>
+                        </div>
+                        {adm.username !== currentAdmin && (
+                          <button onClick={() => confirm("Hapus admin ini?") && deleteAdminAccount(adm.username)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+               </div>
             </div>
           </motion.div>
         )}
