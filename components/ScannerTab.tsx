@@ -10,7 +10,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
   const [student, setStudent] = useState<StudentData | null>(null);
   const [duplicate, setDuplicate] = useState<AttendanceRecord | null>(null);
   const [status, setStatus] = useState<'idle' | 'checking' | 'confirming'>('idle');
-  const [msg, setMsg] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -37,7 +36,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
         () => {}
       );
     } catch (e) { 
-      setMsg("Gagal akses kamera. Pastikan izin diberikan."); 
+      console.error("Camera access failed");
     }
   };
 
@@ -45,7 +44,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
     if (status !== 'idle') return;
     
     try {
-      setMsg("");
       const data: StudentData = JSON.parse(text);
       if (!data.nama || !data.kelas) throw new Error("Invalid Format");
 
@@ -64,8 +62,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
       
       setStatus('confirming');
     } catch (e) {
-      setMsg("QR Code tidak valid!");
-      setTimeout(() => setMsg(""), 2000);
       setStatus('idle');
       if (scannerRef.current?.getState() === 3) {
          scannerRef.current.resume();
@@ -76,7 +72,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
   const handleAttendance = async (pilihan: AttendanceStatus) => {
     const target = student || duplicate;
     if (!target) return;
-    const studentName = target.nama;
 
     try {
       setStatus('checking');
@@ -94,9 +89,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
       await saveAttendance(record, duplicate?.id);
       
-      const label = pilihan === 'SCAN_HADIR' ? 'SHOLAT' : pilihan === 'SCAN_ALPHA' ? 'TIDAK SHOLAT' : 'HALANGAN';
-      setMsg(`${studentName} ${label} BERHASIL DICATAT!`);
-      
       setStudent(null);
       setDuplicate(null);
       setStatus('idle');
@@ -104,10 +96,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
       if (scannerRef.current?.getState() === 3) {
         scannerRef.current.resume();
       }
-
-      setTimeout(() => setMsg(""), 2500);
     } catch (e) { 
-      setMsg("Gagal menyimpan data."); 
       setStatus('confirming');
     }
   };
@@ -155,7 +144,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
         {status === 'confirming' && (
           <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
-            <div className="bg-white dark:bg-slate-900 w-full max-sm rounded-[3.5rem] p-10 text-center shadow-2xl relative overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[3.5rem] p-10 text-center shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
               
               {duplicate && (
@@ -197,12 +186,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
               
               <button onClick={cancel} className="mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Batal</button>
             </div>
-          </motion.div>
-        )}
-
-        {msg && (
-          <motion.div initial={{y:-100, opacity:0}} animate={{y:0, opacity:1}} className="fixed top-28 px-10 py-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full text-[11px] font-black tracking-[0.2em] uppercase shadow-2xl flex items-center gap-3 z-[100] text-center">
-            <Sparkles size={18} className="text-emerald-400 flex-shrink-0" /> <span className="truncate">{msg}</span>
           </motion.div>
         )}
       </AnimatePresence>
