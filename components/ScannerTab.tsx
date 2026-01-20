@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { StudentData, AttendanceRecord, AttendanceStatus } from '../types';
 import { saveAttendance, checkIfAlreadyScanned } from '../services/firebase';
-import { Check, Camera, Sparkles, X, AlertTriangle, Loader2, UserCheck, XCircle, CheckCircle2, Flower2 } from 'lucide-react';
+import { Camera, AlertTriangle, Loader2, XCircle, CheckCircle2, Flower2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ currentUser, officerClass }) => {

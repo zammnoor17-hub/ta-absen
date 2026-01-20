@@ -6,16 +6,15 @@ import {
   subscribeToAttendance, getLocalDateString, updateDailyStatus 
 } from '../services/firebase';
 import { 
-  Users, Key, UserPlus, TrendingUp, UserCheck, GraduationCap, 
-  Trash2, Loader2, QrCode, Search, ClipboardList, PlusCircle, 
-  Camera, CheckCircle2, XCircle, Info, Save, AlertCircle
+  Users, Key, TrendingUp, GraduationCap, 
+  Trash2, Search, ClipboardList, PlusCircle, 
+  Camera, Info, Save, AlertCircle
 } from 'lucide-react';
-import { AdminAccount, MasterStudent, AttendanceStatus, AttendanceRecord } from '../types';
+import { MasterStudent, AttendanceStatus, AttendanceRecord } from '../types';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
-  // Explicitly type the stats state to ensure TypeScript knows the structure
   const [stats, setStats] = useState<{ totalScans: number; officers: Record<string, any[]> }>({ 
     totalScans: 0, 
     officers: {} 
@@ -31,7 +30,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
-    // Cast the setter to handle any data from firebase
     const unsubStats = getAllStats((data: any) => setStats(data));
     const unsubMaster = subscribeToMasterStudents(setMasterStudents);
     const unsubDaily = subscribeToAttendance(getLocalDateString(), setDailyAttendance);
@@ -46,7 +44,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
     };
   }, []);
 
-  // --- Logic Scan Admin ---
   const startAdminScanner = async () => {
     setIsScanning(true);
     setTimeout(async () => {
@@ -82,7 +79,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
     }
   };
 
-  // --- Manual Add ---
   const handleAddManual = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudent.nama || !newStudent.kelas) return;
@@ -91,7 +87,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
     setNewStudent({ nama: '', kelas: '', gender: 'L' });
   };
 
-  // --- Attendance Status Toggle ---
   const toggleStatus = async (student: MasterStudent, newStatus: AttendanceStatus) => {
     const now = new Date();
     const record: AttendanceRecord = {
@@ -124,7 +119,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
 
   return (
     <div className="space-y-6 pb-32 max-w-4xl mx-auto px-2">
-      {/* Navigation Pills */}
       <div className="flex bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-1.5 rounded-[2rem] border border-slate-200 dark:border-white/5 overflow-x-auto no-scrollbar gap-1 shadow-sm">
         <AdminNavBtn active={subTab === 'OVERVIEW'} onClick={() => setSubTab('OVERVIEW')} label="Stats" icon={<TrendingUp size={14}/>} />
         <AdminNavBtn active={subTab === 'ABSENSI'} onClick={() => setSubTab('ABSENSI')} label="Daftar Absen" icon={<ClipboardList size={14}/>} />
@@ -213,7 +207,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
         {subTab === 'STUDENTS' && (
           <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               {/* Admin Scanner Section */}
                <div className="glass-card p-8 rounded-[2.5rem] border border-white/10 flex flex-col items-center">
                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Scan Cepat Tambah Siswa</h3>
                   {isScanning ? (
@@ -229,7 +222,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
                   <p className="mt-4 text-[9px] font-bold text-slate-400 text-center uppercase">Scan QR Card X-Pray untuk otomatis masuk ke database master.</p>
                </div>
 
-               {/* Manual Add Form */}
                <div className="glass-card p-8 rounded-[2.5rem] border border-white/10">
                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Input Manual</h3>
                   <form onSubmit={handleAddManual} className="space-y-4">
@@ -248,7 +240,6 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
                </div>
             </div>
 
-            {/* Master List Management */}
             <div className="glass-card p-8 rounded-[3rem] border border-white/10">
                <div className="flex items-center justify-between mb-8">
                   <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
