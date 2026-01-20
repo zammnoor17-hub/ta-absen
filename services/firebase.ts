@@ -54,7 +54,6 @@ export const updateDailyStatus = async (studentId: string, record: AttendanceRec
 export const saveAttendance = async (record: Omit<AttendanceRecord, 'id'>, id?: string) => {
   const dateStr = getLocalDateString();
   const path = `absensi/${dateStr}`;
-  // Gunakan ID unik dari siswa jika tersedia untuk memudahkan tracking
   const targetId = id || `${record.nama}-${record.kelas}`.replace(/[.#$/[\]]/g, "_");
   await db.ref(`${path}/${targetId}`).set(record);
 };
@@ -71,11 +70,13 @@ export const checkIfAlreadyScanned = async (nama: string, kelas: string): Promis
 };
 
 export const subscribeToAttendance = (dateStr: string, callback: (data: AttendanceRecord[]) => void) => {
+  // Gunakan orderByChild timestamp untuk urutan waktu asli
   const query = db.ref(`absensi/${dateStr}`).orderByChild('timestamp');
   const handler = query.on('value', (snapshot) => {
     const data = snapshot.val();
+    // Kembalikan data sesuai urutan database (kronologis)
     const records = data ? Object.entries(data).map(([key, value]: [string, any]) => ({ id: key, ...value })) : [];
-    callback(records.sort((a, b) => a.nama.localeCompare(b.nama)));
+    callback(records); 
   });
   return () => query.off('value', handler);
 };
