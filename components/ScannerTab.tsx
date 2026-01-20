@@ -3,14 +3,19 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { StudentData, AttendanceRecord, AttendanceStatus } from '../types';
 import { saveAttendance, checkIfAlreadyScanned } from '../services/firebase';
-import { Camera, AlertTriangle, Loader2, XCircle, CheckCircle2, Flower2, Sparkles } from 'lucide-react';
+import { Camera, AlertTriangle, Loader2, XCircle, CheckCircle2, Flower2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ currentUser, officerClass }) => {
+interface ScannerProps {
+  currentUser: string;
+  officerClass: string;
+  showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+}
+
+const ScannerTab: React.FC<ScannerProps> = ({ currentUser, officerClass, showToast }) => {
   const [student, setStudent] = useState<StudentData | null>(null);
   const [duplicate, setDuplicate] = useState<AttendanceRecord | null>(null);
   const [status, setStatus] = useState<'idle' | 'checking' | 'confirming'>('idle');
-  const [msg, setMsg] = useState(''); 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -37,7 +42,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
         () => {}
       );
     } catch (e) { 
-      setMsg("Gagal akses kamera.");
+      showToast("Gagal akses kamera.", "error");
     }
   };
 
@@ -45,7 +50,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
     if (status !== 'idle') return;
     
     try {
-      setMsg(""); 
       const data: StudentData = JSON.parse(text);
       if (!data.nama || !data.kelas) throw new Error("Invalid Format");
 
@@ -64,8 +68,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
       
       setStatus('confirming');
     } catch (e) {
-      setMsg("QR Code Tidak Valid");
-      setTimeout(() => setMsg(""), 2000);
+      showToast("QR Code Tidak Valid", "error");
       setStatus('idle');
       if (scannerRef.current?.getState() === 3) {
          scannerRef.current.resume();
@@ -93,8 +96,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
       await saveAttendance(record, duplicate?.id);
       
-      // Mengubah notifikasi menjadi pesan statis tanpa nama siswa
-      setMsg("ABSEN TERDETEKSI!");
+      showToast("ABSEN TERDETEKSI!", "success");
       
       setStudent(null);
       setDuplicate(null);
@@ -103,10 +105,8 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
       if (scannerRef.current?.getState() === 3) {
         scannerRef.current.resume();
       }
-      
-      setTimeout(() => setMsg(""), 2500);
     } catch (e) { 
-      setMsg("Gagal menyimpan data.");
+      showToast("Gagal menyimpan data.", "error");
       setStatus('confirming');
     }
   };
@@ -194,12 +194,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
               
               <button onClick={cancel} className="mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Batal</button>
             </div>
-          </motion.div>
-        )}
-
-        {msg && (
-          <motion.div initial={{y:-100, opacity:0}} animate={{y:0, opacity:1}} exit={{y:-100, opacity:0}} className="fixed top-28 px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full text-[10px] font-black tracking-[0.2em] uppercase shadow-2xl flex items-center gap-3 z-[100] text-center border border-white/10">
-            <Sparkles size={16} className="text-emerald-400 flex-shrink-0" /> <span className="truncate">{msg}</span>
           </motion.div>
         )}
       </AnimatePresence>
