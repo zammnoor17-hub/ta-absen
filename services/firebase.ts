@@ -1,7 +1,7 @@
 
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/database';
-import { AttendanceRecord, AdminAccount, MasterStudent, AttendanceStatus, OfficerStat } from '../types';
+import { AdminAccount, MasterStudent, AttendanceStatus, OfficerStat } from '../types';
 
 // Re-export OfficerStat for components that import it from here
 export type { OfficerStat };
