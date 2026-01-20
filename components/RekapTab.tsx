@@ -31,10 +31,10 @@ const RekapTab: React.FC = () => {
       case 'SCAN_HADIR': return { label: 'SHOLAT', color: 'bg-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400' };
       case 'SCAN_ALPHA': return { label: 'TIDAK SHOLAT', color: 'bg-red-500', bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-600 dark:text-red-400' };
       case 'SCAN_IZIN': return { label: 'HALANGAN', color: 'bg-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' };
-      case 'HADIR': return { label: 'HADIR (M)', color: 'bg-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300' };
-      case 'ALPHA': return { label: 'ALPHA (M)', color: 'bg-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300' };
-      case 'IZIN': return { label: 'IZIN (M)', color: 'bg-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300' };
-      case 'SAKIT': return { label: 'SAKIT (M)', color: 'bg-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300' };
+      case 'HADIR': return { label: 'HADIR.', color: 'bg-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300' };
+      case 'ALPHA': return { label: 'ALPHA.', color: 'bg-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300' };
+      case 'IZIN': return { label: 'IZIN.', color: 'bg-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300' };
+      case 'SAKIT': return { label: 'SAKIT.', color: 'bg-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300' };
       default: return { label: status, color: 'bg-slate-500', bg: 'bg-slate-50', text: 'text-slate-600' };
     }
   };
