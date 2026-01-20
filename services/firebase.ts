@@ -1,9 +1,8 @@
 
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/database';
-import { AdminAccount, MasterStudent, AttendanceStatus, OfficerStat } from '../types';
+import { AttendanceRecord, AdminAccount, MasterStudent, AttendanceStatus, OfficerStat } from '../types';
 
-// Re-export OfficerStat for components that import it from here
 export type { OfficerStat };
 
 const firebaseConfig = {
@@ -70,40 +69,70 @@ export const checkIfAlreadyScanned = async (nama: string, kelas: string): Promis
 };
 
 export const subscribeToAttendance = (dateStr: string, callback: (data: AttendanceRecord[]) => void) => {
-  // Gunakan orderByChild timestamp untuk urutan waktu asli
   const query = db.ref(`absensi/${dateStr}`).orderByChild('timestamp');
   const handler = query.on('value', (snapshot) => {
     const data = snapshot.val();
-    // Kembalikan data sesuai urutan database (kronologis)
     const records = data ? Object.entries(data).map(([key, value]: [string, any]) => ({ id: key, ...value })) : [];
-    callback(records); 
+    callback(records as AttendanceRecord[]);
   });
   return () => query.off('value', handler);
 };
 
-// --- Authentication ---
-export const verifyOfficer = async (username: string, pass: string) => {
-  const snapshot = await db.ref(`config/officers/${username}`).once('value');
-  const data = snapshot.val();
-  if (data && data.password === pass) return data;
-  return null;
+// --- Admin Management ---
+export const verifyAdmin = async (u: string, p: string): Promise<boolean> => {
+  const snap = await db.ref(`config/admins/${u}`).once('value');
+  const data = snap.val();
+  return data && data.password === p;
 };
 
-export const verifyAdmin = async (username: string, pass: string) => {
-  const snapshot = await db.ref('config/admins').once('value');
-  const admins = snapshot.val();
-  if (!admins && username === 'admin' && pass === '123') {
-    await db.ref('config/admins/admin').set({ username: 'admin', password: '123', role: 'SUPER_ADMIN' });
-    return true;
-  }
-  return admins && Object.values(admins).some((a: any) => a.username === username && a.password === pass);
+export const updateAdminAccount = async (username: string, data: AdminAccount) => {
+  await db.ref(`config/admins/${username}`).set(data);
 };
 
+export const subscribeToAdmins = (callback: (admins: AdminAccount[]) => void) => {
+  const ref = db.ref('config/admins');
+  const handler = ref.on('value', (snap) => {
+    const data = snap.val();
+    const admins = data ? Object.values(data) as AdminAccount[] : [];
+    callback(admins);
+  });
+  return () => ref.off('value', handler);
+};
+
+export const deleteAdminAccount = async (username: string) => {
+  await db.ref(`config/admins/${username}`).remove();
+};
+
+// --- Officer Management ---
 export const registerOfficer = async (u: string, p: string, k: string) => {
-  const ref = db.ref(`config/officers/${u}`);
-  const snap = await ref.once('value');
-  if (snap.exists()) throw new Error("Username sudah terpakai.");
-  await ref.set({ username: u, password: p, kelas: k, role: 'OFFICER' });
+  await db.ref(`config/officers/${u}`).set({ username: u, password: p, kelas: k });
+};
+
+export const verifyOfficer = async (u: string, p: string) => {
+  const snap = await db.ref(`config/officers/${u}`).once('value');
+  const data = snap.val();
+  return (data && data.password === p) ? data : null;
+};
+
+// --- Stats & Leaderboard ---
+export const getLeaderboards = (callback: (daily: OfficerStat[]) => void) => {
+  const dateStr = getLocalDateString();
+  const ref = db.ref(`absensi/${dateStr}`);
+  const handler = ref.on('value', (snap) => {
+    const data = snap.val();
+    if (!data) return callback([]);
+    const counts: Record<string, number> = {};
+    Object.values(data).forEach((r: any) => {
+      if (r.scannedBy && !r.scannedBy.startsWith('ADMIN_')) {
+        counts[r.scannedBy] = (counts[r.scannedBy] || 0) + 1;
+      }
+    });
+    const sorted = Object.entries(counts)
+      .map(([name, count]) => ({ name, scanCount: count }))
+      .sort((a, b) => b.scanCount - a.scanCount);
+    callback(sorted);
+  });
+  return () => ref.off('value', handler);
 };
 
 export const getAllStats = (callback: (data: any) => void) => {
@@ -111,74 +140,24 @@ export const getAllStats = (callback: (data: any) => void) => {
   const handler = ref.on('value', (snap) => {
     const data = snap.val() || {};
     let total = 0;
-    const officerMap: Record<string, Record<string, number>> = {};
+    const officers: Record<string, any> = {};
     
-    Object.values(data).forEach((dayRecords: any) => {
-      Object.values(dayRecords).forEach((r: any) => {
+    Object.values(data).forEach((day: any) => {
+      Object.values(day).forEach((r: any) => {
         total++;
-        if (r.scannedBy && r.officerKelas) {
-          if (!officerMap[r.officerKelas]) officerMap[r.officerKelas] = {};
-          const classStats = officerMap[r.officerKelas];
-          classStats[r.scannedBy] = (classStats[r.scannedBy] || 0) + 1;
+        if (r.officerKelas && r.officerKelas !== 'ADMIN') {
+          if (!officers[r.officerKelas]) officers[r.officerKelas] = {};
+          officers[r.officerKelas][r.scannedBy] = (officers[r.officerKelas][r.scannedBy] || 0) + 1;
         }
       });
     });
 
     const formattedOfficers: Record<string, any[]> = {};
-    Object.entries(officerMap).forEach(([kelas, officers]) => {
-      formattedOfficers[kelas] = Object.entries(officers).map(([name, count]) => ({
-        name,
-        scanCount: count as number
-      }));
+    Object.entries(officers).forEach(([kelas, users]) => {
+      formattedOfficers[kelas] = Object.entries(users as any).map(([name, count]) => ({ name, scanCount: count }));
     });
 
     callback({ totalScans: total, officers: formattedOfficers });
-  });
-  return () => ref.off('value', handler);
-};
-
-export const updateAdminAccount = async (oldU: string, data: AdminAccount) => {
-  if (oldU !== data.username) await db.ref(`config/admins/${oldU}`).remove();
-  await db.ref(`config/admins/${data.username}`).set(data);
-};
-
-export const deleteOfficerRecords = async (name: string) => {
-  const snapshot = await db.ref('absensi').once('value');
-  const data = snapshot.val();
-  if (!data) return;
-  const updates: any = {};
-  Object.entries(data).forEach(([dateStr, dayRecords]: [string, any]) => {
-    Object.entries(dayRecords).forEach(([key, record]: [string, any]) => {
-      if (record.scannedBy === name) updates[`absensi/${dateStr}/${key}`] = null;
-    });
-  });
-  await db.ref().update(updates);
-  await db.ref(`config/officers/${name}`).remove();
-};
-
-export const getLeaderboards = (callback: (daily: OfficerStat[], weekly: OfficerStat[]) => void) => {
-  const ref = db.ref('absensi');
-  const handler = ref.on('value', (snap) => {
-    const data = snap.val() || {};
-    const today = getLocalDateString();
-    const dailyCounts: Record<string, number> = {};
-    const weeklyCounts: Record<string, number> = {};
-
-    Object.entries(data).forEach(([dateStr, records]: [string, any]) => {
-      Object.values(records).forEach((r: any) => {
-        if (!r.scannedBy) return;
-        if (dateStr === today) dailyCounts[r.scannedBy] = (dailyCounts[r.scannedBy] || 0) + 1;
-        weeklyCounts[r.scannedBy] = (weeklyCounts[r.scannedBy] || 0) + 1;
-      });
-    });
-
-    const format = (counts: Record<string, number>): OfficerStat[] => 
-      Object.entries(counts)
-        .map(([name, scanCount]) => ({ name, scanCount }))
-        .sort((a, b) => b.scanCount - a.scanCount)
-        .slice(0, 5);
-
-    callback(format(dailyCounts), format(weeklyCounts));
   });
   return () => ref.off('value', handler);
 };
