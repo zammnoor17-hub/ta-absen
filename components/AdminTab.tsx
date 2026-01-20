@@ -99,6 +99,7 @@ const AdminTab: React.FC<{ currentAdmin: string }> = ({ currentAdmin }) => {
       scannedBy: `ADMIN_${currentAdmin}`,
       officerKelas: 'ADMIN'
     };
+    // Update status dilakukan secara langsung ke Firebase tanpa memicu notifikasi visual (Silent Update)
     await updateDailyStatus(student.id, record);
   };
 

@@ -10,7 +10,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
   const [student, setStudent] = useState<StudentData | null>(null);
   const [duplicate, setDuplicate] = useState<AttendanceRecord | null>(null);
   const [status, setStatus] = useState<'idle' | 'checking' | 'confirming'>('idle');
-  const [msg, setMsg] = useState(''); // Fitur notifikasi dikembalikan
+  const [msg, setMsg] = useState(''); 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
     if (status !== 'idle') return;
     
     try {
-      setMsg(""); // Bersihkan notifikasi lama saat scan baru
+      setMsg(""); 
       const data: StudentData = JSON.parse(text);
       if (!data.nama || !data.kelas) throw new Error("Invalid Format");
 
@@ -77,9 +77,8 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
     const target = student || duplicate;
     if (!target) return;
 
-    // FIX: Tangkap nama siswa yang SEDANG diproses di variabel lokal
-    // untuk menjamin notifikasi menampilkan nama yang benar meskipun state di-reset
-    const scannedName = target.nama;
+    // FIX BUG: Kunci nama siswa ke variabel lokal agar tidak tertukar saat state di-reset
+    const exactScannedName = target.nama;
 
     try {
       setStatus('checking');
@@ -97,9 +96,9 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
       await saveAttendance(record, duplicate?.id);
       
-      // Notifikasi menggunakan variabel lokal scannedName
+      // Gunakan exactScannedName untuk notifikasi yang akurat
       const actionLabel = pilihan === 'SCAN_HADIR' ? 'SHOLAT' : pilihan === 'SCAN_ALPHA' ? 'TIDAK SHOLAT' : 'HALANGAN';
-      setMsg(`${scannedName} BERHASIL ${actionLabel}!`);
+      setMsg(`${exactScannedName} BERHASIL ${actionLabel}!`);
       
       setStudent(null);
       setDuplicate(null);
@@ -109,7 +108,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
         scannerRef.current.resume();
       }
       
-      // Bersihkan notifikasi setelah 2.5 detik
       setTimeout(() => setMsg(""), 2500);
     } catch (e) { 
       setMsg("Gagal menyimpan data.");
@@ -128,7 +126,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
 
   return (
     <div className="flex flex-col items-center py-6 px-4 max-w-md mx-auto">
-      {/* Status Header */}
       <div className="w-full glass-card p-5 rounded-[2.5rem] flex items-center justify-between mb-8 shadow-sm">
         <div className="flex items-center gap-4">
            <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/20">
@@ -142,7 +139,6 @@ const ScannerTab: React.FC<{ currentUser: string; officerClass: string }> = ({ c
         <div className="px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full text-[10px] font-black animate-pulse">LIVE</div>
       </div>
 
-      {/* QR Container */}
       <div className="relative w-full aspect-square bg-slate-900 rounded-[3.5rem] overflow-hidden border-8 border-white dark:border-slate-800 shadow-2xl">
         <div id="reader" className="w-full h-full"></div>
         {status === 'idle' && <div className="scan-line" />}
